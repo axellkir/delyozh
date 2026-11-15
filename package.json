@@ -1,6 +1,6 @@
 {
   "name": "delyozh",
-  "version": "0.3.0",
+  "version": "0.4.0",
   "private": true,
   "description": "ДЕЛЁЖ — пошаговая стратегия про Москву 90-х на 2–3 игроков за одним компьютером",
   "type": "module",
