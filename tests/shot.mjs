@@ -40,6 +40,16 @@ const info = await page.evaluate((np, map, facs) => {
   return { size: MW, objs: G.objs.length, home: [t.x, t.y, t.name], cx: Math.floor(MCX), cy: Math.floor(MCY) };
 }, np, map, facs);
 console.log(JSON.stringify(info));
+// лист со всеми значками и спрайтами
+await page.evaluate(() => {
+  const ids = Object.keys(SPRITES), sc = 4, cell = 16 * sc + 12, cols = 18, o = document.createElement('canvas'); o.id = 'sheet';
+  o.width = cols * cell; o.height = Math.ceil(ids.length / cols) * (cell + 14); o.style.cssText = 'position:fixed;left:0;top:0;z-index:1000;background:#3a3340';
+  const x = o.getContext('2d'); x.imageSmoothingEnabled = false; x.font = '9px sans-serif';
+  ids.forEach((id, i) => { const X = (i % cols) * cell + 6, Y = Math.floor(i / cols) * (cell + 14) + 4; x.fillStyle = ['#7b7464', '#3f7a36', '#4c4c54'][i % 3]; x.fillRect(X - 3, Y - 2, cell - 6, cell - 8); x.drawImage(SPRITES[id].frames[0], X, Y, 16 * sc, 16 * sc); x.fillStyle = '#fff'; x.fillText(id.slice(0, 13), X - 2, Y + 16 * sc + 10); });
+  document.body.appendChild(o);
+});
+await page.screenshot({ path: path.join(out, 'sprites.png'), clip: { x: 0, y: 0, width: 1368, height: 480 } });
+await page.evaluate(() => document.getElementById('sheet').remove());
 await page.screenshot({ path: path.join(out, 'whole.png'), clip: { x: 0, y: 0, width: 1400, height: 900 } });
 await page.setViewport({ width: 1400, height: 1400 });
 await page.screenshot({ path: path.join(out, 'whole-full.png'), clip: { x: 0, y: 0, width: 1400, height: 1400 } });
