@@ -24,7 +24,7 @@ function curtain(p) {
 // ---------- армии ----------
 let SLOT = null; // выбранный слот: {key, i}
 function armyRow(arr, key, title) {
-  return `<div class="army"><h3>${title}</h3><div class="slots">${arr.map((a, i) => `<div class="slot ${SLOT && SLOT.key === key && SLOT.i === i ? 'sel' : ''}" data-ak="${key}" data-ai="${i}" title="${a ? UNITS[a.u].name : 'пусто'}">${a ? UNITS[a.u].em + `<b>${a.n}</b>` : ''}</div>`).join('')}</div></div>`;
+  return `<div class="army"><h3>${title}</h3><div class="slots">${arr.map((a, i) => `<div class="slot ${SLOT && SLOT.key === key && SLOT.i === i ? 'sel' : ''}" data-ak="${key}" data-ai="${i}" title="${a ? UNITS[a.u].name : 'пусто'}">${a ? unitIcon(a.u, 40) + `<b>${a.n}</b>` : ''}</div>`).join('')}</div></div>`;
 }
 function bindSlots(root, armies, rerender) {
   root.querySelectorAll('[data-ak]').forEach(el => el.onclick = () => {
@@ -47,12 +47,12 @@ function renderTown(t, hero) {
   const p = G.players[t.owner], F = FACTIONS[t.fac], units = F.units;
   const bcard = b => {
     const st = buildState(t, b), label = { built: '✅ построено', req: `нужно: ${b.req && BLD[b.req].name}`, today: 'сегодня уже строили', money: 'не хватает', ok: '' }[st];
-    const name = b.tier ? `${b.name}: ${UNITS[units[b.tier - 1]].em}` : b.name;
+    const name = b.tier ? `${b.name}: ${unitIcon(units[b.tier - 1], 24)}` : b.name;
     return `<div class="bcard ${st === 'built' ? 'built' : ''}"><b>${name}</b><span>${b.desc}</span><span>${st === 'built' ? '' : costText(b.cost)}</span>${st === 'ok' ? `<button data-b="${b.id}">Построить</button>` : `<small>${label}</small>`}</div>`;
   };
   const rcard = (u, i) => {
     const U = UNITS[u], ok = t.built['dw' + (i + 1)], n = t.avail[u] || 0, mx = maxRecruit(t, u);
-    return `<div class="rcard ${ok ? '' : 'lock'}"><div class="em">${U.em}</div><b>${U.name}</b><br>⚔️${U.att} 🛡️${U.def} ❤️${U.hp} 💨${U.spd}<br>урон ${U.dmg[0]}–${U.dmg[1]}${U.shots ? ' · стрелок' : ''}${U.fly ? ' · прыгает' : ''}<br><i>${U.note || '&nbsp;'}</i><br>
+    return `<div class="rcard ${ok ? '' : 'lock'}"><div class="em">${unitIcon(u, 64)}</div><b>${U.name}</b><br>⚔️${U.att} 🛡️${U.def} ❤️${U.hp} 💨${U.spd}<br>урон ${U.dmg[0]}–${U.dmg[1]}${U.shots ? ' · стрелок' : ''}${U.fly ? ' · прыгает' : ''}<br><i>${U.note || '&nbsp;'}</i><br>
       цена ${costText(U.cost)}<br>доступно: <b>${ok ? n : '—'}</b><br>${ok ? `<div class="btns" style="justify-content:center;margin-top:4px"><button data-r="${u}" data-n="1" ${mx ? '' : 'disabled'}>+1</button><button data-r="${u}" data-n="${mx}" ${mx ? '' : 'disabled'}>Все (${mx})</button></div>` : ''}</div>`;
   };
   const market = t.built.market ? `<h3>Барахолка</h3><div class="btns">${['fuel', 'brick'].map(r => `<button data-buy="${r}">Купить ${RES_ICON[r]} за ${TRADE_BUY}💵</button><button class="sec" data-sell="${r}">Продать ${RES_ICON[r]} за ${TRADE_SELL}💵</button>`).join('')}</div>` : '';
