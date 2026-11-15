@@ -45,6 +45,11 @@ function view(r, cid, sv, bv = 1e15) {
     seats: r.seats.map(s => ({ kind: s.kind, name: s.name, fac: s.fac, hero: s.hero, diff: s.diff, owner: s.owner ? (s.owner === cid ? 'me' : 'other') : null, ownerName: s.owner ? r.names[s.owner] || '' : '', online: online(r, s.owner) })),
     auth: r.auth === cid, authOnline: online(r, r.auth), meta: r.meta, sv: r.sv, snap: r.snap && r.sv > sv ? r.snap : undefined,
     bv: r.bv || 0, battle: (r.bv || 0) > bv ? r.battle || null : undefined,
+    // одновременные ходы: сколько мест уже сдали свой день и сдал ли его этот клиент
+    turns: r.turns || 'seq', hostSeat: r.seats.findIndex(s => s.owner === r.host),
+    subn: r.seats.filter((s, i) => s.kind === 'human' && s.owner && r.subs && r.subs[i] != null).length,
+    subw: r.seats.filter(s => s.kind === 'human' && s.owner).length,
+    submitted: r.seats.some(s => s.owner === cid) && r.seats.every((s, i) => s.owner !== cid || (r.subs && r.subs[i] != null)),
   };
 }
 // ответ на опрос: тому, кто считает партию, заодно отдаём накопившиеся команды защитника
@@ -96,6 +101,7 @@ function lobbyOp(r, cid, b) {
       if (s.kind !== b.kind) { s.kind = b.kind; s.owner = null; } return null;
     case 'map': if (!host || r.state !== 'lobby') return 'Это может только хозяин комнаты'; r.map = b.map === 'ring' ? 'ring' : 'msk'; return null;
     case 'public': if (!host) return 'Это может только хозяин комнаты'; r.public = !!b.public; return null;
+    case 'turns': if (!host || r.state !== 'lobby') return 'Это может только хозяин комнаты'; r.turns = b.turns === 'seq' ? 'seq' : 'sim'; return null;
     case 'takeover': // хозяин забирает место отвалившегося игрока и право хода, чтобы партия не встала
       if (!host || r.state !== 'playing' || !s || s.kind !== 'human' || online(r, s.owner)) return 'Забрать можно только место игрока, который не в сети';
       if (r.auth === s.owner) r.auth = cid;
@@ -125,7 +131,7 @@ async function api(req, res, url) {
     created.set(ip, [...mine, now]);
     const seats = Array.from({ length: 6 }, (_, i) => seatIn(Array.isArray(b.seats) ? b.seats[i] : null, i));
     const first = seats.find(s => s.kind === 'human'); if (first) first.owner = b.cid;
-    const r = { code: newCode(), host: b.cid, created: now, touched: now, public: !!b.public, state: 'lobby', v: 1, map: b.map === 'ring' ? 'ring' : 'msk', seats, names: { [b.cid]: str(b.name, 16) || 'Хозяин' }, seen: { [b.cid]: now }, snap: null, sv: 0, auth: b.cid, meta: null };
+    const r = { code: newCode(), host: b.cid, created: now, touched: now, public: !!b.public, state: 'lobby', v: 1, map: b.map === 'ring' ? 'ring' : 'msk', turns: b.turns === 'seq' ? 'seq' : 'sim', subs: {}, seats, names: { [b.cid]: str(b.name, 16) || 'Хозяин' }, seen: { [b.cid]: now }, snap: null, sv: 0, auth: b.cid, meta: null };
     rooms.set(r.code, r); save();
     return send(res, 200, view(r, b.cid, 0));
   }
@@ -137,6 +143,7 @@ async function api(req, res, url) {
     const cid = url.searchParams.get('cid'), v = Number(url.searchParams.get('v') || 0), sv = Number(url.searchParams.get('sv') || 0), bv = Number(url.searchParams.get('bv') || 0);
     if (!isCid(cid)) return fail(res, 400, 'нет ключа клиента');
     r.seen[cid] = Date.now();
+    if (parts[3] === 'subs') return r.host === cid ? send(res, 200, { subs: r.subs || {} }) : fail(res, 403, 'Это может только хозяин комнаты'); // сданные дни — хозяину, он их сводит
     if (r.v > v || url.searchParams.get('wait') !== '1') return send(res, 200, reply(r, cid, sv, bv));
     const w = { res, cid, sv, bv, timer: setTimeout(() => { const l = waiters.get(r.code) || []; waiters.set(r.code, l.filter(x => x !== w)); send(res, 200, reply(r, cid, sv, bv)); }, POLL_MS) };
     waiters.set(r.code, [...(waiters.get(r.code) || []), w]);
@@ -158,6 +165,13 @@ async function api(req, res, url) {
     r.battle = typeof b.data === 'string' && b.data.length < 60000 ? b.data : null; r.bv = (r.bv || 0) + 1;
     bump(r); return send(res, 200, { ok: true, bv: r.bv });
   }
+  if (parts[3] === 'submit') { // одновременные ходы: игрок сдал свой день
+    if (r.state !== 'playing' || typeof b.data !== 'string' || b.data.length < 2) return fail(res, 409, 'Партия не идёт');
+    const mine = r.seats.map((x, i) => (x.kind === 'human' && x.owner === b.cid ? i : -1)).filter(i => i >= 0);
+    if (!mine.length) return fail(res, 403, 'Вы не в этой партии');
+    r.subs = r.subs || {}; for (const i of mine) r.subs[i] = b.data;
+    bump(r); return send(res, 200, { ok: true });
+  }
   if (parts[3] === 'cmd') { // игрок, на которого напали, командует своими отрядами
     const seat = r.seats.findIndex(x => x.kind === 'human' && x.owner === b.cid);
     if (seat < 0 || r.state !== 'playing' || !b.cmd || typeof b.cmd !== 'object') return fail(res, 403, 'Вы не в этой партии');
@@ -175,7 +189,7 @@ async function api(req, res, url) {
       if (r.state !== 'playing') return fail(res, 409, 'Партия не идёт');
       if (r.auth !== b.cid) return fail(res, 403, 'Сейчас не ваш ход');
     }
-    r.snap = b.snap; r.sv++; r.cmds = [];
+    r.snap = b.snap; r.sv++; r.cmds = []; r.subs = {};
     const m = b.meta || {};
     r.meta = { day: Number(m.day) || 1, cur: Number(m.cur) || 0, over: !!m.over, name: str(m.name, 16) };
     if (r.meta.over) r.state = 'over';

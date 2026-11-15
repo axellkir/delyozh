@@ -10,7 +10,7 @@ import puppeteer from 'puppeteer-core';
 
 const repo = path.join(path.dirname(fileURLToPath(import.meta.url)), '..');
 const root = path.resolve(repo, process.env.TEST_ROOT || '.');
-const DAYS = Number(process.env.TEST_DAYS || 12), port = 18000 + Math.floor(Math.random() * 2000);
+const SEQ = process.env.TEST_TURNS === 'seq', DAYS = Number(process.env.TEST_DAYS || 12), port = 18000 + Math.floor(Math.random() * 2000);
 const data = fs.mkdtempSync(path.join(os.tmpdir(), 'delyozh-'));
 const chrome = [process.env.CHROME_PATH, '/Applications/Google Chrome.app/Contents/MacOS/Google Chrome', '/usr/bin/google-chrome', '/usr/bin/google-chrome-stable'].find(p => p && fs.existsSync(p));
 const srv = spawn(process.execPath, [path.join(repo, 'server', 'server.mjs')], { env: { ...process.env, PORT: String(port), HOST: '127.0.0.1', STATIC_DIR: root, DATA_DIR: data }, stdio: ['ignore', 'pipe', 'inherit'] });
@@ -36,7 +36,7 @@ async function client(name) {
       while (!window.__stop) {
         if (G && G.over) break;
         if (G && G.day > days) break;
-        if (G && NET.auth && NET.mine.has(G.cur) && !BUSY && !BOTTING && !B && NET.introTurn === G.turnNo) { await aiPlay(curP()); window.__turns++; await endTurn(); }
+        if (G && (G.sim ? NET.simActive : NET.auth) && NET.mine.has(G.cur) && !BUSY && !BOTTING && !B && NET.introTurn === G.turnNo) { if (G.sim) window.__simTurns = (window.__simTurns || 0) + 1; await aiPlay(curP()); window.__turns++; await endTurn(); }
         await new Promise(r => setTimeout(r, 30));
       }
     };
@@ -47,8 +47,9 @@ const wait = async (page, fn, what, ms = 20000, ...args) => { try { await page.w
 let failed = false;
 try {
   const A = await client('Вася'), Bp = await client('Петя');
+  globalThis.__A = A; globalThis.__B = Bp;
   // Вася создаёт открытую комнату: два человека и злой бот
-  await A.evaluate(async () => { seats[0].kind = 'human'; seats[1].kind = 'human'; seats[2].kind = 'bot'; seats[2].diff = 2; seats[3].kind = seats[4].kind = seats[5].kind = 'off'; await netCreate(true); });
+  await A.evaluate(async seq => { seats[0].kind = 'human'; seats[1].kind = 'human'; seats[2].kind = 'bot'; seats[2].diff = 2; seats[3].kind = seats[4].kind = seats[5].kind = 'off'; await netCreate(true); if (seq) await netOp('turns', { turns: 'seq' }); }, SEQ);
   const code = await A.evaluate(() => NET.code);
   // Петя видит комнату в списке открытых, входит и садится
   const listed = await Bp.evaluate(async () => { await netList(); return (NET.list || []).map(r => r.code); });
@@ -63,19 +64,28 @@ try {
   if (!noStart) throw new Error('гость смог начать партию');
   await A.evaluate(() => { document.getElementById('newBtn').click(); });
   await wait(Bp, () => !!G && document.getElementById('menu').hidden, 'Петя получил партию');
-  A.evaluate(d => window.__auto(d), DAYS); Bp.evaluate(d => window.__auto(d), DAYS);
+  A.evaluate(d => window.__auto(d), DAYS).catch(() => {}); Bp.evaluate(d => window.__auto(d), DAYS).catch(() => {});
   await A.waitForFunction(d => G && (G.over || G.day > d), { timeout: 120000 }, DAYS);
   await Bp.waitForFunction(d => G && (G.over || G.day > d), { timeout: 60000 }, DAYS);
   await new Promise(r => setTimeout(r, 1500));
-  const st = p => p.evaluate(() => ({ day: G.day, cur: G.cur, over: G.over, turnNo: G.turnNo, turns: window.__turns, sv: NET.sv, auth: NET.auth, mine: [...NET.mine], heroes: G.heroes.length, objs: G.objs.length, gold: G.players.map(x => x.res.gold).join(','), alive: G.players.map(x => +x.alive).join(''), seenMe: viewP().name }));
+  const st = p => p.evaluate(() => ({ day: G.day, cur: G.cur, over: G.over, turnNo: G.turnNo, turns: window.__turns, simTurns: window.__simTurns || 0, simDays: G.simDays || 0, sim: !!G.sim, sv: NET.sv, auth: NET.auth, mine: [...NET.mine], heroes: G.heroes.length, objs: G.objs.length, gold: G.players.map(x => x.res.gold).join(','), alive: G.players.map(x => +x.alive).join(''), seenMe: viewP().name }));
   const a = await st(A), b = await st(Bp);
   console.log('Вася:', JSON.stringify(a)); console.log('Петя:', JSON.stringify(b));
-  for (const k of ['day', 'cur', 'over', 'turnNo', 'heroes', 'objs', 'gold', 'alive']) if (a[k] !== b[k]) errors.push(`партии разошлись: ${k} — ${a[k]} у Васи, ${b[k]} у Пети`);
+  // в общий день у каждого своя копия, но в его начале (до ходов) они совпадают; «чей ход» там у каждого свой
+  for (const k of ['day', 'over', 'turnNo', 'heroes', 'objs', 'gold', 'alive', ...(a.sim ? [] : ['cur'])]) if (a[k] !== b[k]) errors.push(`партии разошлись: ${k} — ${a[k]} у Васи, ${b[k]} у Пети`);
   if (!a.over && (a.turns < 3 || b.turns < 3)) errors.push(`мало сыграно ходов: Вася ${a.turns}, Петя ${b.turns}`);
   if (a.auth && b.auth) errors.push('право хода сразу у обоих');
+  if (!SEQ && (!a.simDays || !a.simTurns || !b.simTurns)) errors.push(`одновременных дней не было: дней ${a.simDays}, ходов Васи ${a.simTurns}, Пети ${b.simTurns}`);
+  if (SEQ && a.simDays) errors.push('в режиме «по очереди» случился общий день');
   if (a.seenMe === b.seenMe) errors.push('оба смотрят глазами одной бригады');
   // живая защита: тот, у кого ход, нападает на героя соперника; бой должен показаться у соперника, и он должен успеть покомандовать
-  const [X, Y] = a.auth ? [A, Bp] : [Bp, A];
+  // для этой проверки возвращаем партию в режим «по очереди»: хозяин объявляет обычный день со своим ходом
+  if (a.sim) {
+    await A.evaluate(async () => { G.sim = false; NET.simActive = false; G.cur = [...NET.mine][0]; NET.auth = true; await netSend(netPack(), netMeta(), G.players[G.cur].seat); });
+    await wait(Bp, () => G && !G.sim && !NET.simActive, 'Петя вышел из общего дня');
+  }
+  const authA = await A.evaluate(() => NET.auth && NET.mine.has(G.cur));
+  const [X, Y] = authA ? [A, Bp] : [Bp, A];
   const fight = await X.evaluate(async () => {
     const me = [...NET.mine][0], h = myHeroes(me)[0], o = G.heroes.find(q => netRemote(q.owner));
     if (!h || !o || !NET.auth) return null;
@@ -94,8 +104,12 @@ try {
   await wait(Bp, () => !!G && NET.on && document.getElementById('menu').hidden, 'Петя вернулся в партию после перезагрузки');
   const back = await Bp.evaluate(() => ({ day: G.day, mine: [...NET.mine] }));
   if (back.day < a.day || back.mine.join() !== b.mine.join()) errors.push('после перезагрузки партия или место не те: ' + JSON.stringify(back));
-} catch (e) { errors.push(String(e && e.message || e)); }
+} catch (e) {
+  errors.push(String(e && e.message || e));
+  // что было у обоих в момент сбоя — чтобы понять, где встала партия
+  for (const [n, p] of [['Вася', globalThis.__A], ['Петя', globalThis.__B]]) try { if (p) console.log(n, await p.evaluate(() => JSON.stringify(G ? { day: G.day, cur: G.cur, sim: !!G.sim, simDay: G.simDay, pending: !!G.simPending, turnNo: G.turnNo, auth: NET.auth, simActive: NET.simActive, simSent: NET.simSent, netSimDay: NET.simDay, merging: NET.merging, mine: [...NET.mine], busy: BUSY, bot: BOTTING, b: !!B, intro: NET.introTurn, room: NET.room && { host: NET.room.host, auth: NET.room.auth, subn: NET.room.subn, subw: NET.room.subw, hostSeat: NET.room.hostSeat, turns: NET.room.turns, sv: NET.room.sv }, modal: !document.getElementById('modal').hidden, toast: document.getElementById('toast').textContent } : 'нет партии'))); } catch (x) { /* страница уже закрыта */ }
+}
 finally { await browser.close(); srv.kill(); fs.rmSync(data, { recursive: true, force: true }); }
 if (errors.length) { failed = true; console.log('✗ Игра по сети'); errors.slice(0, 8).forEach(e => console.log('    ' + e.split('\n').slice(0, 4).join('\n    '))); }
-else console.log('✓ Игра по сети: комната, список, права, партия на двух компьютерах с ботом, живая защита, возврат по ссылке');
+else console.log(`✓ Игра по сети (${SEQ ? 'ходы по очереди' : 'одновременные ходы'}): комната, список, права, партия на двух компьютерах с ботом, живая защита, возврат по ссылке`);
 process.exit(failed ? 1 : 0);

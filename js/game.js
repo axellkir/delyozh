@@ -45,19 +45,24 @@ function dailyIncome(pid) {
 }
 
 // ---------- ходы ----------
+// Начало дня бригады: доход, запас хода, понты. Начисляется один раз за день, даже если партию открыли заново посреди хода.
+function turnEffects(p) {
+  if (p.turnDay === G.day) return;
+  p.turnDay = G.day;
+  const bot = p.kind === 'bot';
+  if (G.day > 1) { const inc = dailyIncome(p.id), k = bot ? DIFF[p.diff].income : 1; RES.forEach(r => p.res[r] += Math.round(inc[r] * (r === 'gold' ? k : 1))); }
+  for (const h of myHeroes(p.id)) {
+    h.mp = heroMaxMp(h);
+    h.mana = Math.min(maxMana(h), h.mana + (townAt(h.x, h.y) ? 99 : 5));
+  }
+  p.noTown = myTowns(p.id).length ? 0 : (p.noTown || 0) + 1;
+}
+// В день одновременных ходов чужие бригады людей не трогаем: каждый считает свой день сам, и драка между ними рассинхронила бы партию
+const simPeace = owner => NET.on && !!G.sim && owner >= 0 && !isBot(owner);
 async function beginTurn() {
   const p = curP(), bot = isBot(p.id);
   BOTTING = bot;
-  // доход и запас хода начисляются один раз за день, даже если партию сохранили и открыли заново посреди хода
-  if (p.turnDay !== G.day) {
-    p.turnDay = G.day;
-    if (G.day > 1) { const inc = dailyIncome(p.id), k = bot ? DIFF[p.diff].income : 1; RES.forEach(r => p.res[r] += Math.round(inc[r] * (r === 'gold' ? k : 1))); }
-    for (const h of myHeroes(p.id)) {
-      h.mp = heroMaxMp(h);
-      h.mana = Math.min(maxMana(h), h.mana + (townAt(h.x, h.y) ? 99 : 5));
-    }
-    p.noTown = myTowns(p.id).length ? 0 : (p.noTown || 0) + 1;
-  }
+  turnEffects(p);
   UI.sel = null; UI.plan = null;
   if (p.noTown >= 7) {
     G.heroes = G.heroes.filter(h => h.owner !== p.id); checkWin();
@@ -80,7 +85,7 @@ async function beginTurn() {
 // Начало хода человека за этим компьютером: шторка, новости, выбор героя
 async function turnIntro(p) {
   BOTTING = false; UI.sel = null; UI.plan = null;
-  G.view = p.id; NET.view = p.id; refresh();
+  G.view = p.id; NET.view = p.id; NET.introTurn = G.turnNo; refresh();
   if (humans().filter(x => x.alive && !netRemote(x.id)).length > 1) await curtain(p); else { audioInit(); toast(`Ваш ход · неделя ${weekNo()}, день ${dayOfWeek()}`); }
   if (p.inbox && p.inbox.length) { const news = p.inbox.splice(0); await ask(`${ico('i_news', 24)} Пока вас не было`, news.join('<br>'), ['Понятно']); }
   if (p.noTown) await ask(`${ico('i_warn', 24)} Нет своего города!`, `Осталось дней, чтобы захватить любой город: ${7 - p.noTown}. Иначе бригада распадётся.`, ['Понял']);
@@ -94,13 +99,15 @@ async function turnIntro(p) {
 }
 async function endTurn() {
   if (BUSY || G.over) return;
+  if (NET.on && G.sim) { await simEndTurn(); return; } // одновременные ходы: сдаём свой день
   BUSY = true;
-  let n = G.cur;
+  let n = G.cur, wrapped = false;
   do {
     n = (n + 1) % G.players.length;
-    if (n === 0) { G.day++; G.firstDone = true; if (dayOfWeek() === 1) newWeek(); }
+    if (n === 0) { G.day++; G.firstDone = true; wrapped = true; if (dayOfWeek() === 1) newWeek(); }
   } while (!G.players[n].alive);
   G.cur = n; G.turnNo = (G.turnNo || 0) + 1;
+  if (NET.on && wrapped && simOk()) { BUSY = false; await simHandToHost(); return; } // новый день можно сыграть всем сразу
   if (!NET.on) saveGame();
   BUSY = false;
   await beginTurn();
@@ -191,6 +198,7 @@ async function enterTile(h, last, action) {
     removeObj(o); return false;
   }
   if (o.t === 'mine') {
+    if (o.owner !== h.owner && simPeace(o.owner)) { if (last) toast('Чужую точку сегодня не отжать: все ходят одновременно', true); return false; }
     if (o.owner !== h.owner) { if (o.owner >= 0) notify(o.owner, `${p.name} отжали у вас точку: ${mineOf(o).name}.${botLine(h.owner, 'mine')}`); o.owner = h.owner; reveal(h.owner, o.x, o.y, 3); sfx('flag'); toast(`${mineOf(o).name} — теперь ваша точка: +${mineOf(o).amt} ${RES_GEN[MINE[o.kind].res]} в день`); log(`${p.name} взяли точку: ${mineOf(o).name}`); }
     return false;
   }
@@ -229,6 +237,7 @@ async function doAction(h, act) {
   else if (act.kind === 'meet') { const o = heroById(act.id); if (o && !isBot(h.owner)) { BUSY = false; await openExchange(h, o); BUSY = true; } }
   else if (act.kind === 'hero') {
     const o = heroById(act.id); if (!o) return;
+    if (simPeace(o.owner)) { toast('Сегодня все ходят одновременно — чужие бригады не трогаем', true); return; }
     const t = townAt(o.x, o.y);
     if (t) { await siege(h, t); return; }
     await fightHero(h, o, false);
@@ -284,6 +293,7 @@ function militiaOf(t) {
   return [{ u: u[0], n: 8 + 5 * w }, w >= 2 ? { u: u[1], n: 3 * w } : null, w >= 4 ? { u: u[2], n: w } : null, null, null];
 }
 async function siege(h, t) {
+  if (simPeace(t.owner) && t.owner !== h.owner) { toast('Сегодня все ходят одновременно — чужие бригады не трогаем', true); return; }
   const p = G.players[h.owner];
   const def = heroAt(t.x, t.y);
   if (def && def.owner !== h.owner) { const won = await fightHero(h, def, true); if (!won) return; }
@@ -327,6 +337,7 @@ async function giveXp(h, xp) {
   }
 }
 function checkWin() {
+  if (NET.on && G.sim && !NET.merging) return; // в день одновременных ходов итоги подводит хозяин комнаты, когда сведёт все ходы
   for (const p of G.players) if (p.alive && !myTowns(p.id).length && !myHeroes(p.id).length) {
     p.alive = false; log(`Бригада «${p.name}» распалась`);
     G.players.forEach(x => { if (x !== p && x.id !== G.cur) notify(x.id, `Бригада «${p.name}» распалась.`); });

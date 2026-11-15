@@ -268,7 +268,8 @@ function refresh() {
   if (!G) return;
   const watch = BOTTING || netWatching(), p = watch ? viewP() : curP(), inc = dailyIncome(p.id);
   $('pName').innerHTML = `${ico('t_' + p.fac, 28)} ${esc(p.name)}`; $('pName').style.color = p.col;
-  $('pDay').innerHTML = watch ? `<b style="color:${curP().col}">${ico(isBot(G.cur) ? 'i_bot' : 'i_net', 16)} Ходит: ${esc(curP().name)}…</b>` : `Неделя ${weekNo()}, день ${dayOfWeek()} · всего дней: ${G.day}`;
+  $('pDay').innerHTML = NET.on && G.sim && !BOTTING ? (watch ? `<b>${ico('i_wait', 16)} День сдан. Ждём остальных…</b>` : `<b>${ico('i_net', 16)} Общий день: все ходят сразу</b> · неделя ${weekNo()}, день ${dayOfWeek()}`)
+    : watch ? `<b style="color:${curP().col}">${ico(isBot(G.cur) ? 'i_bot' : 'i_net', 16)} Ходит: ${esc(curP().name)}…</b>` : `Неделя ${weekNo()}, день ${dayOfWeek()} · всего дней: ${G.day}`;
   $('endBtn').disabled = watch;
   netBox(); netDirty();
   $('pRes').innerHTML = RES.map(r => `<div>${resIco(r, 22)} ${p.res[r]}<small>+${inc[r]}/день</small></div>`).join('');
