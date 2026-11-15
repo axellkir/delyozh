@@ -9,10 +9,16 @@ import puppeteer from 'puppeteer-core';
 const repo = path.join(path.dirname(fileURLToPath(import.meta.url)), '..');
 const root = path.resolve(repo, process.env.TEST_ROOT || '.');
 const DAYS = Number(process.env.TEST_DAYS || 200);
+const H = (name, fac, hero) => ({ name, fac, hero, kind: 'human' });
+const BOT = (name, fac, diff) => ({ name, fac, kind: 'bot', diff });
 const SCENARIOS = [
-  { name: '3 игрока', players: [{ name: 'Красные', fac: 'kach' }, { name: 'Синие', fac: 'rynok' }, { name: 'Зелёные', fac: 'neform' }] },
-  { name: '2 игрока', players: [{ name: 'Красные', fac: 'neform' }, { name: 'Синие', fac: 'kach' }] },
-  { name: '3 игрока, одна бригада', players: [{ name: 'А', fac: 'rynok' }, { name: 'Б', fac: 'rynok' }, { name: 'В', fac: 'rynok' }] },
+  { name: '3 человека', players: [H('Красные', 'kach'), H('Жёлтые', 'rynok'), H('Синие', 'neform')] },
+  { name: '2 человека', players: [H('Красные', 'neform', 2), H('Жёлтые', 'kach', 3)] },
+  { name: '3 человека, одна бригада', players: [H('А', 'rynok', 0), H('Б', 'rynok', 1), H('В', 'rynok', 2)] },
+  { name: '1 человек + 2 бота', players: [H('Красные', 'kach'), BOT('Жёлтые', 'rynok', 1), BOT('Синие', 'neform', 2)] },
+  { name: '2 человека + 2 бота (карта на 4)', players: [H('Красные', 'kach'), BOT('Жёлтые', 'rynok', 0), H('Синие', 'neform'), BOT('Зелёные', 'kach', 2)] },
+  { name: 'бот ходит первым, 5 бригад', players: [BOT('Красные', 'neform', 1), H('Жёлтые', 'rynok'), BOT('Синие', 'kach', 1), BOT('Зелёные', 'rynok', 2), H('Фиолетовые', 'neform')] },
+  { name: '1 человек + 5 ботов (карта на 6)', players: [H('Красные', 'kach'), BOT('Жёлтые', 'rynok', 0), BOT('Синие', 'neform', 1), BOT('Зелёные', 'kach', 1), BOT('Фиолетовые', 'rynok', 2), BOT('Рыжие', 'neform', 2)] },
 ];
 
 function findChrome() {
@@ -49,13 +55,13 @@ try {
       genMap({ players });
       const res = await BOT.run(days);
       const saved = (saveGame(), loadGame());
-      return { errors: res.errors, day: res.day, over: res.over, ms: res.ms, battles: res.battles, captures: res.captures, eliminated: res.eliminated, saved: !!saved, version: typeof VERSION === 'string' ? VERSION : null };
+      return { errors: res.errors, day: res.day, over: res.over, ms: res.ms, battles: res.battles, sims: res.sims, map: res.map, captures: res.captures, eliminated: res.eliminated, saved: !!saved || res.over, version: typeof VERSION === 'string' ? VERSION : null };
     }, sc.players, DAYS);
     await page.close();
     const errors = [...r.errors, ...pageErrors];
     if (!r.saved) errors.push('сохранение не читается обратно');
     if (r.day < 3) errors.push('игра не продвинулась дальше дня ' + r.day);
-    const tail = `день ${r.day}, боёв ${r.battles}, захватов ${r.captures}, выбыли: ${r.eliminated.join(', ') || 'никто'}, ${r.ms} мс, версия ${r.version}`;
+    const tail = `карта ${r.map}×${r.map}, день ${r.day}, боёв ${r.battles}, прикидок ${r.sims}, захватов ${r.captures}, выбыли: ${r.eliminated.join(', ') || 'никто'}, ${r.ms} мс`;
     if (errors.length) { failed++; console.log(`✗ ${sc.name}: ${tail}`); errors.slice(0, 5).forEach(e => console.log('    ' + e.split('\n').slice(0, 4).join('\n    '))); }
     else console.log(`✓ ${sc.name}: ${r.over ? 'партия доиграна' : `партия не закончилась за ${DAYS} дней (не ошибка)`}, ${tail}`);
   }
