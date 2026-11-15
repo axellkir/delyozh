@@ -42,7 +42,8 @@ const SFX = {
   lose: () => [392, 370, 349, 330, 220].forEach((f, i) => tone(f, 0.35, 'sawtooth', 0.16, null, i * 0.22)),
   turn: () => [659, 784, 988].forEach((f, i) => tone(f, 0.2, 'triangle', 0.15, null, i * 0.1)),
 };
-function sfx(n) { if (AC && SFX[n]) SFX[n](); }
+// звуки чужого бота и мгновенных боёв не играем
+function sfx(n) { if ((B && B.quick) || (BOTTING && !B && n !== 'step')) return; if (AC && SFX[n]) SFX[n](); }
 
 const NF = {}; ['C', 'C#', 'D', 'D#', 'E', 'F', 'F#', 'G', 'G#', 'A', 'A#', 'B'].forEach((n, i) => { for (let o = 1; o <= 6; o++) NF[n + o] = 440 * Math.pow(2, (i - 9) / 12 + o - 4); });
 const CH = { Am: ['A', 'C', 'E'], Dm: ['D', 'F', 'A'], E: ['E', 'G#', 'B'], F: ['F', 'A', 'C'], G: ['G', 'B', 'D'], C: ['C', 'E', 'G'] };
