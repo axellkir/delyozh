@@ -65,13 +65,17 @@ for (const [name, x, y] of [['center', info.cx - 1, info.cy], ['home', info.home
 await page.evaluate(() => { const t = myTowns(0)[0]; t.built.dw2 = t.built.dw3 = true; t.avail[FACTIONS[t.fac].units[1]] = 9; openTown(t, heroAt(t.x, t.y)); });
 await new Promise(r => setTimeout(r, 300));
 await page.screenshot({ path: path.join(out, 'town.png') });
-await page.evaluate(() => {
-  closeTown(); SPEED = 1;
-  const h = G.heroes[0]; h.army = [{ u: 'gop', n: 14 }, { u: 'metal', n: 9 }, { u: 'byk', n: 4 }, { u: 'ekstra', n: 1 }, { u: 'shpana', n: 30 }];
-  runBattle({ a: { army: h.army, hero: h, owner: 0 }, d: { army: [{ u: 'chop', n: 8 }, { u: 'buh', n: 4 }, { u: 'babka', n: 12 }, { u: 'chelnok', n: 20 }, { u: 'fura', n: 1 }], hero: null, owner: -1, fence: true }, title: 'Штурм: Черкизон' });
-});
-await new Promise(r => setTimeout(r, 900));
-await page.mouse.move(590, 300);
-await new Promise(r => setTimeout(r, 300));
-await page.screenshot({ path: path.join(out, 'battle.png') });
+await page.evaluate(() => { closeTown(); SPEED = 1; });
+// бои на разных полях: штурм рынка с забором, парк, подвал, Красная площадь
+for (const [arena, fence] of [['market', true], ['park', false], ['basement', false], ['kremlin', false], ['street', false], ['gym', true]]) {
+  await page.evaluate((arena, fence) => {
+    if (B) endBattle(0);
+    document.querySelectorAll('.ov').forEach(e => { e.hidden = true; });
+    const h = G.heroes[0]; h.army = [{ u: 'gop', n: 14 }, { u: 'metal', n: 9 }, { u: 'byk', n: 4 }, { u: 'ekstra', n: 1 }, { u: 'shpana', n: 30 }];
+    runBattle({ a: { army: h.army, hero: h, owner: 0 }, d: { army: [{ u: 'chop', n: 8 }, { u: 'buh', n: 4 }, { u: 'babka', n: 12 }, { u: 'chelnok', n: 20 }, { u: 'fura', n: 1 }], hero: null, owner: -1, fence }, title: 'Проверка поля', arena });
+    setTimeout(() => { const t = B.stacks.find(s => s.side === 1); burst(t.x, t.y, 14, ['#ffd21a', '#fff', '#f08a2c'], { v: 0.09 }); floatText(t, 'ФАРТ! −48', '#ffd21a'); }, 450);
+  }, arena, fence);
+  await new Promise(r => setTimeout(r, 700));
+  await page.screenshot({ path: path.join(out, `arena-${arena}.png`), clip: { x: 0, y: 0, width: 1140, height: 900 } });
+}
 await browser.close(); server.close();

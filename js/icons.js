@@ -67,6 +67,11 @@ const ICONS = {
   o_bin: ['...dddddddddd', '..NNNNNNNNNNNN', '..NnNnNnNnNnNN', '..NnNnNnNnNnNN', '..NnNnNnNnNnNN', '..NnNnNnNnNnNN', '..NNNNNNNNNNNN', '..d..........d'],
   o_barrel: ['....rrrrrrrr', '...rrrrrrrrrr', '...yyyyyyyyyy', '...rrrrrrrrrr', '...rrrkkrrrrr', '...rrrrrrrrrr', '...yyyyyyyyyy', '...rrrrrrrrrr', '....rrrrrrrr'],
   o_crate: ['..TTTTTTTTTTTT', '..TssssssssssT', '..TsTssssssTsT', '..TssTssssTssT', '..TsssTTTTsssT', '..TsssTTTTsssT', '..TssTssssTssT', '..TsTssssssTsT', '..TssssssssssT', '..TTTTTTTTTTTT'],
+  o_garage: ['...gggggggggg', '..gGGGGGGGGGGg', '..gGgGgGgGgGGg', '..gGgGgGgGgGGg', '..gGgGgGgGgGGg', '..gGgGgGgGgGGg', '..gGgGgGgyGGGg', '..gGgGgGgGgGGg', '..dddddddddddd'],
+  o_bench: ['..TTTTTTTTTTTT', '..TTTTTTTTTTTT', '..d..........d', '..TTTTTTTTTTTT', '..TTTTTTTTTTTT', '..d..........d', '..d..........d'],
+  o_bags: ['.....rwbwrw', '....bwrwbwrw', '....wbwrwbwr', '..bwbwrw.wbwr', '.bwrwbwrwbwrw', '.wbwrwbwrwbwr', '.bwrwbwrwbwrw'],
+  o_rack: ['.DD..........DD', '.DDggggggggggDD', '.DD..........DD', '..d..........d', '..d..........d', '..d..rrrrrr..d', '..d..rrrrrr..d', '..dddddddddddd'],
+  o_pipe: ['..GGGGGGGGGGGG', '..gggggggggggg', '..GGGGGGGGGGGG', '......GG', '......GG', '..rr..GG', '.rrrr.GG', '..rr..GG', '......GG'],
   o_fence: ['.d.d.d.d.d.d.d', 'd.d.d.d.d.d.d.d', '..gggggggggggg', '..gGggggggGggg', '..gggggggggggg', '..ggggGggggggG', '..gggggggggggg', '..gGgggggGgggg', '..gggggggggggg', '..GGGGGGGGGGGG'],
   // ---- интерфейс ----
   i_play: ['...n', '...nn', '...nnn', '...nnnn', '...nnnnn', '...nnnnnn', '...nnnnn', '...nnnn', '...nnn', '...nn', '...n'],
