@@ -94,7 +94,10 @@ try {
     return { won, heroes: G.heroes.length };
   });
   if (fight) {
-    await wait(Y, n => !B && G.heroes.length === n, 'соперник получил итог боя', 20000, fight.heroes).catch(() => errors.push('итог боя не дошёл до соперника'));
+    await wait(Y, n => !B && G.heroes.length === n, 'соперник получил итог боя', 30000, fight.heroes).catch(async () => {
+      const dump = p => p.evaluate(() => JSON.stringify({ b: B ? { mirror: !!B.mirror, need: B.need, round: B.round } : null, heroes: G.heroes.length, day: G.day, cur: G.cur, over: G.over, on: NET.on, auth: NET.auth, sv: NET.sv, bv: NET.bv, timer: !!NET.timer, busy: BUSY, botting: BOTTING, sim: !!G.sim, room: NET.room && { sv: NET.room.sv, bv: NET.room.bv, auth: NET.room.auth, state: NET.room.state }, toast: document.getElementById('toast').textContent }));
+      errors.push(`итог боя не дошёл до соперника (ждали героев: ${fight.heroes}); нападавший: ${await dump(X)}; защитник: ${await dump(Y)}`);
+    });
     const live = await Y.evaluate(() => window.__live);
     console.log(`Живая защита: команд защитника ${live}, победа нападавшего: ${fight.won}`);
     if (!live) errors.push('защитник ни разу не получил управление своими отрядами');
