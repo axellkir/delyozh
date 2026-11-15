@@ -162,7 +162,7 @@ function makeHero(owner, fac, x, y, idx) {
   const all = FACTIONS[fac].heroes, used = new Set(G.heroes.filter(h => h.fac === fac).map(h => h.name));
   const pool = all.filter(c => !used.has(c.name));
   const c = all[idx] || (pool.length ? pick(pool) : pick(all));
-  const h = { id: G.nextId++, owner, fac, name: c.name, em: c.em, spec: c.spec, x, y, mp: 90, att: 1, def: 1, pow: 1, mana: 15, lvl: 1, xp: 0, arts: [], army: [null, null, null, null, null], dest: null };
+  const h = { id: G.nextId++, owner, fac, name: c.name, spec: c.spec, x, y, mp: 90, att: 1, def: 1, pow: 1, mana: 15, lvl: 1, xp: 0, arts: [], army: [null, null, null, null, null], dest: null };
   h.mp = heroMaxMp(h);
   return h;
 }

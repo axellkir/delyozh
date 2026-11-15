@@ -3,7 +3,7 @@
 
 const BW = 11, BH = 8;
 let B = null;
-const OBST = ['🗑️', '🚗', '🛢️', '📦', '🚧'], OBST_SPR = ['o_bin', 'champ', 'o_crate', 'o_crate', 'o_barrier'];
+const OBST_SPR = ['o_bin', 'champ', 'o_crate', 'o_crate', 'o_barrier'];
 
 function runBattle(cfg) {
   return new Promise(resolve => {
@@ -106,7 +106,7 @@ async function strike(a, t, ranged, main) {
   const crit = Math.random() < Math.min(0.25, 0.07 + 0.02 * sd.st.pow); // фарт: чем больше понтов у героя, тем чаще
   if (crit) dmg = Math.round(dmg * 1.5);
   const k = applyDmg(t, dmg); sfx(k ? 'kill' : 'hit');
-  floatText(t, `${crit ? 'ФАРТ! ' : ''}−${dmg}${k ? ' ✖' + k : ''}`, crit ? '#ffd21a' : '#ff5050');
+  floatText(t, `${crit ? 'ФАРТ! ' : ''}−${dmg}${k ? ' · легло ' + k : ''}`, crit ? '#ffd21a' : '#ff5050');
   if (crit || !alive(t)) B.shake = Math.max(B.shake, crit ? 7 : 5);
   blog(`${sName(a)} ${ranged ? 'стреляют в' : 'бьют'} ${sName(t)}: ${dmg} урона${crit ? ' (фарт!)' : ''}${k ? `, полегло ${k}` : ''}`);
   if (main && alive(t)) {
@@ -114,7 +114,7 @@ async function strike(a, t, ranged, main) {
     if (U.slow && !t.slow) { t.slow = 2; floatText(t, 'замедлены', '#9cf', 0.35); }
     if (U.stun && Math.random() < 0.25) { t.stun = true; floatText(t, 'проверка!', '#ffcc66', 0.35); }
   }
-  const also = (e, part) => { const d = Math.max(1, Math.round(dmg * part)), kk = applyDmg(e, d); floatText(e, `−${d}${kk ? ' ✖' + kk : ''}`, '#ff9030'); };
+  const also = (e, part) => { const d = Math.max(1, Math.round(dmg * part)), kk = applyDmg(e, d); floatText(e, `−${d}${kk ? ' · легло ' + kk : ''}`, '#ff9030'); };
   if (main && U.splash) for (const e of enemiesOf(a)) if (e !== t && cheb(e, t) <= 1) also(e, 0.4);
   if (main && U.pierce && !ranged) { const e = stackAt(t.x + Math.sign(t.x - a.x), t.y + Math.sign(t.y - a.y)); if (e && e.side !== a.side) also(e, 0.5); }
   // кураж: положил отряд целиком — ходи ещё раз (раз за раунд)
@@ -137,7 +137,7 @@ async function explode(x, y) {
   B.barrels.delete(key); B.obst.delete(key); sfx('kill'); B.shake = 12;
   B.fx.push({ x, y, text: 'БАБАХ!', col: '#ffb020', t: 0 }); blog('Бочка с бензином рванула!');
   const d = barrelDmg();
-  for (const e of B.stacks) if (alive(e) && Math.max(Math.abs(e.x - x), Math.abs(e.y - y)) <= 1) { const k = applyDmg(e, d); floatText(e, `−${d}${k ? ' ✖' + k : ''}`, '#ffb020', 0.2); }
+  for (const e of B.stacks) if (alive(e) && Math.max(Math.abs(e.x - x), Math.abs(e.y - y)) <= 1) { const k = applyDmg(e, d); floatText(e, `−${d}${k ? ' · легло ' + k : ''}`, '#ffb020', 0.2); }
   await sleep(380);
   for (const [dx, dy] of DIRS) if (isBarrel(x + dx, y + dy)) await explode(x + dx, y + dy); // цепная реакция
 }
@@ -285,10 +285,10 @@ function castOn(t) {
 async function castSpell(sp, t) {
   const s = B.active, sd = B.sides[s.side], p = sd.st.pow;
   sd.hero.mana -= sp.cost; sd.castRound = B.round; B.spell = null; B.busy = true; sfx('spell');
-  if (sp.id === 'naezd') { const d = 12 + 10 * p, k = applyDmg(t, d); floatText(t, `−${d}${k ? ' 💀' + k : ''}`, '#ff9030'); blog(`${sd.hero.name}: «Наезд» на ${sName(t)}: ${d}`); }
+  if (sp.id === 'naezd') { const d = 12 + 10 * p, k = applyDmg(t, d); floatText(t, `−${d}${k ? ' · легло ' + k : ''}`, '#ff9030'); blog(`${sd.hero.name}: «Наезд» на ${sName(t)}: ${d}`); }
   if (sp.id === 'krysha') { t.buff += 6; floatText(t, 'крыша +6', '#6cf'); blog(`${sd.hero.name} дал крышу: ${sName(t)}`); }
-  if (sp.id === 'voda') { const H = UNITS[t.u].hp, np = Math.min(t.n0 * H, pool(t) + 20 + 10 * p); t.n = Math.ceil(np / H); t.hp = np - (t.n - 1) * H; floatText(t, '💧 лечим', '#6f6'); blog(`${sd.hero.name} зарядил воду для ${sName(t)}`); }
-  if (sp.id === 'strelka') { const d = 6 + 5 * p; for (const e of enemiesOf(s)) { const k = applyDmg(e, d); floatText(e, `−${d}${k ? ' 💀' + k : ''}`, '#ff0'); } blog(`${sd.hero.name} забил стрелку: всем врагам по ${d}`); }
+  if (sp.id === 'voda') { const H = UNITS[t.u].hp, np = Math.min(t.n0 * H, pool(t) + 20 + 10 * p); t.n = Math.ceil(np / H); t.hp = np - (t.n - 1) * H; floatText(t, 'подлечили', '#6f6'); blog(`${sd.hero.name} зарядил воду для ${sName(t)}`); }
+  if (sp.id === 'strelka') { const d = 6 + 5 * p; for (const e of enemiesOf(s)) { const k = applyDmg(e, d); floatText(e, `−${d}${k ? ' · легло ' + k : ''}`, '#ff0'); } blog(`${sd.hero.name} забил стрелку: всем врагам по ${d}`); }
   await sleep(450); B.busy = false;
   const done = [0, 1].find(i => !B.stacks.some(x => x.side === i && alive(x)));
   if (done !== undefined && B.wait) { const w = B.wait; B.wait = null; w(); }
@@ -303,7 +303,7 @@ function hoverInfo(cx, cy) {
   if (!t && B.fences.has(`${cx},${cy}`)) return 'Забор с колючкой: пешком — только через ворота посередине';
   if (!t) return '';
   const U = UNITS[t.u];
-  let txt = `<b>${U.name} ×${t.n}</b> · ${ico('i_att', 16, '⚔️')}${U.att + B.sides[t.side].st.att - (t.curse || 0)} ${ico('i_def', 16, '🛡️')}${effDef(t)} · ${ico('i_hp', 16, '❤️')}${t.hp}/${U.hp} · ${ico('i_spd', 16, '💨')}${sSpd(t)}${U.shots ? ` · ${ico('i_shot', 16, '🎯')}${t.shots}` : ''}${U.note ? ' · <i>' + U.note + '</i>' : ''}`;
+  let txt = `<b>${U.name} ×${t.n}</b> · ${ico('i_att', 16)}${U.att + B.sides[t.side].st.att - (t.curse || 0)} ${ico('i_def', 16)}${effDef(t)} · ${ico('i_hp', 16)}${t.hp}/${U.hp} · ${ico('i_spd', 16)}${sSpd(t)}${U.shots ? ` · ${ico('i_shot', 16)}${t.shots}` : ''}${U.note ? ' · <i>' + U.note + '</i>' : ''}`;
   if (t.side !== s.side && humanSide(s)) {
     const ranged = canShoot(s), ap = ranged ? null : attackCell(s, t, cx + 0.5, cy + 0.5), [lo, hi] = dmgRange(s, t, ranged, ap ? ap.length : 0), H = U.hp;
     const kill = d => Math.min(t.n, d >= pool(t) ? t.n : t.n - Math.ceil((pool(t) - d) / H));

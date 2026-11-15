@@ -25,7 +25,7 @@ function prerender() {
     if (soft) continue;
     if (t === T.GROUND) { for (let i = 0; i < 6; i++) { g.fillStyle = `rgba(0,0,0,${0.05 + hash2(x * 7 + i, y, 9) * 0.1})`; g.fillRect(X + hash2(x, y * 3 + i, 1) * TS, Y + hash2(x + i, y, 2) * TS, 3, 3); } }
     if (t === T.ROAD) { g.fillStyle = 'rgba(255,255,255,.05)'; g.fillRect(X, Y, TS, 2); if (h < 0.15) { g.fillStyle = '#3a3a40'; g.beginPath(); g.ellipse(X + 24, Y + 28, 9, 5, 0, 0, 7); g.fill(); } }
-    if (t === T.PARK || t === T.FOREST) { if (h < 0.7) { const s = SPRITES[t === T.FOREST || h >= 0.35 ? 'tree1' : 'tree2']; g.imageSmoothingEnabled = false; if (s) g.drawImage(s.frames[0], Math.round(X + 8 + (h - 0.35) * 14), Y + 6, 32, 32); else { g.font = '30px serif'; g.fillText('🌲', X + 24, Y + 24); } } }
+    if (t === T.PARK || t === T.FOREST) { if (h < 0.7) { const s = SPRITES[t === T.FOREST || h >= 0.35 ? 'tree1' : 'tree2']; g.imageSmoothingEnabled = false; if (s) g.drawImage(s.frames[0], Math.round(X + 8 + (h - 0.35) * 14), Y + 6, 32, 32); } }
     if (t === T.WATER) { g.strokeStyle = 'rgba(255,255,255,.25)'; g.lineWidth = 2; g.beginPath(); g.moveTo(X + 8, Y + 18); g.quadraticCurveTo(X + 16, Y + 12, X + 24, Y + 18); g.moveTo(X + 22, Y + 34); g.quadraticCurveTo(X + 30, Y + 28, X + 38, Y + 34); g.stroke(); }
     if (t === T.BLOCK) {
       g.fillStyle = '#6e6e68'; g.fillRect(X + 3, Y + 3, TS - 6, 6);
@@ -34,7 +34,7 @@ function prerender() {
     if (t === T.WALL) { g.fillStyle = '#7a1a1a'; for (let i = 0; i < 4; i++) g.fillRect(X + 2 + i * 12, Y, 7, 8); g.strokeStyle = '#5a1010'; g.strokeRect(X + 0.5, Y + 0.5, TS - 1, TS - 1); }
   }
   if (msk) paintMoscow(g);
-  g.font = '40px serif'; g.fillText('⭐', (MCX) * TS, (MCY - 3) * TS + 24);
+  if (SPRITES.i_star) { g.imageSmoothingEnabled = false; g.drawImage(SPRITES.i_star.frames[0], MCX * TS - 24, (MCY - 3) * TS, 48, 48); }
 }
 // Плавные реки и дороги по клеткам: соседние клетки одного типа соединяются толстой линией со скруглёнными концами
 function paintMoscow(g) {
@@ -87,7 +87,7 @@ function toast(t, force) { if (BOTTING && !force && !B) return; const el = $('to
 const sizeWord = n => (n < 5 ? 'Несколько' : n < 10 ? 'Группа' : n < 20 ? 'Толпа' : n < 50 ? 'Банда' : 'Орда');
 function objLabel(o) {
   if (o.t === 'town') return `${o.name} — ${o.owner >= 0 ? G.players[o.owner].name : 'ничей'}`;
-  if (o.t === 'mine') return `${mineOf(o).name}: +${mineOf(o).amt}${RES_ICON[MINE[o.kind].res]} в день — ${o.owner >= 0 ? G.players[o.owner].name : 'ничей'}`;
+  if (o.t === 'mine') return `${mineOf(o).name}: +${mineOf(o).amt} ${RES_GEN[MINE[o.kind].res]} в день — ${o.owner >= 0 ? G.players[o.owner].name : 'ничей'}`;
   if (o.t === 'pile') return `${RES_NAME[o.res]}: ${o.amt}`;
   if (o.t === 'chest') return `${o.nm || 'Общак'} — бабло или опыт`;
   if (o.t === 'art') return `${o.nm ? o.nm + ' · ' : ''}${ARTS[o.art].name}: ${ARTS[o.art].desc}`;
@@ -115,19 +115,15 @@ function drawMap() {
     const X = o.x * TS + TS / 2, Y = o.y * TS + TS / 2;
     if (o.t === 'town') {
       c.fillStyle = o.owner >= 0 ? pcol(o.owner) : '#ddd'; c.fillRect(X - 26, Y - 30, 52, 8);
-      if (!drawSprite(c, 't_' + o.fac, X, Y - 2, 48, 0)) { c.font = '44px serif'; c.fillText('🏢', X - 6, Y + 2); c.font = '24px serif'; c.fillText(FACTIONS[o.fac].em, X + 16, Y + 12); }
+      drawSprite(c, 't_' + o.fac, X, Y - 2, 48, 0);
       if (o.dist) mapTag(c, o.name, X, Y + 30, true);
       continue;
     }
     if (o.t === 'mine' || o.t === 'town') { c.fillStyle = o.owner >= 0 ? pcol(o.owner) : '#eee'; c.fillRect(X + 8, Y - 22, 12, 9); c.fillStyle = '#222'; c.fillRect(X + 7, Y - 22, 2, 22); }
-    let em = '?';
     if (o.nm && seen(o.x, o.y)) mapTag(c, o.lb || o.nm.split(':')[0], X, Y + 31);
-    if (o.t === 'mine') em = mineOf(o).em; else if (o.t === 'pile') em = RES_ICON[o.res]; else if (o.t === 'chest') em = o.em || '📦';
-    else if (o.t === 'art') { em = ARTS[o.art].em; c.fillStyle = `rgba(255,220,60,${0.25 + 0.15 * Math.sin(now / 300)})`; c.beginPath(); c.arc(X, Y, 20, 0, 7); c.fill(); }
-    else if (o.t === 'bonus') em = bonusOf(o).em;
-    else if (o.t === 'mob') { em = UNITS[o.army.find(Boolean).u].em; c.fillStyle = 'rgba(200,30,30,.35)'; c.beginPath(); c.arc(X, Y, 21, 0, 7); c.fill(); if (drawSprite(c, o.army.find(Boolean).u, X, Y - 1, o.boss ? 48 : 40, o.id)) continue; }
-    if (drawSprite(c, sprOf(o), X, Y, o.t === 'pile' || o.t === 'art' || o.t === 'chest' || (o.t === 'bonus' && !o.sp) ? 32 : 48, 0)) continue;
-    c.font = (o.t === 'mob' && o.boss ? 46 : 32) + 'px serif'; c.fillText(em, X, Y + 2);
+    if (o.t === 'art') { c.fillStyle = `rgba(255,220,60,${0.25 + 0.15 * Math.sin(now / 300)})`; c.beginPath(); c.arc(X, Y, 20, 0, 7); c.fill(); }
+    if (o.t === 'mob') { c.fillStyle = 'rgba(200,30,30,.35)'; c.beginPath(); c.arc(X, Y, 21, 0, 7); c.fill(); drawSprite(c, o.army.find(Boolean).u, X, Y - 1, o.boss ? 48 : 40, o.id); continue; }
+    drawSprite(c, sprOf(o), X, Y, o.t === 'pile' || o.t === 'art' || o.t === 'chest' || (o.t === 'bonus' && !o.sp) ? 32 : 48, 0);
   }
   // путь
   const h = selHero();
@@ -138,7 +134,7 @@ function drawMap() {
       c.fillStyle = ok ? '#4f4' : '#f54'; c.beginPath(); c.arc(st.x * TS + TS / 2, st.y * TS + TS / 2, first ? 5 : 4, 0, 7); c.fill(); first = false;
     }
     const lx = UI.plan.tx * TS + TS / 2, ly = UI.plan.ty * TS + TS / 2;
-    c.font = '26px serif'; c.fillText(UI.plan.action ? (UI.plan.action.kind === 'meet' ? '🤝' : '⚔️') : '❌', lx, ly);
+    drawSprite(c, UI.plan.action ? (UI.plan.action.kind === 'meet' ? 'i_meet' : 'i_att') : 'i_x', lx, ly, 32, 0);
   }
   // герои
   for (const o of G.heroes) {
@@ -146,7 +142,7 @@ function drawMap() {
     const X = o.x * TS + TS / 2, Y = o.y * TS + TS / 2, inTown = !!townAt(o.x, o.y), dx = inTown ? 14 : 0, dy = inTown ? 12 : 0;
     if (o.id === UI.sel) { c.strokeStyle = '#ffd21a'; c.lineWidth = 3; c.beginPath(); c.arc(X + dx, Y + dy, 21 + Math.sin(now / 180) * 2, 0, 7); c.stroke(); }
     c.fillStyle = pcol(o.owner); c.beginPath(); c.arc(X + dx, Y + dy, 17, 0, 7); c.fill(); c.strokeStyle = '#000'; c.lineWidth = 2; c.stroke();
-    if (!drawSprite(c, 'h_' + o.name, X + dx, Y + dy - 1, 32, o.id)) { c.font = '26px serif'; c.fillText(o.em, X + dx, Y + dy + 1); }
+    drawSprite(c, 'h_' + o.name, X + dx, Y + dy - 1, 32, o.id);
   }
   // туман
   c.fillStyle = '#000';
@@ -186,7 +182,7 @@ function drawBattle() {
     }
   }
   c.font = Math.round(cs * 0.6) + 'px serif';
-  for (const k of B.obst) { const [x, y] = k.split(',').map(Number); const q = (x * 3 + y) % OBST.length, id = B.barrels.has(k) ? 'o_barrel' : B.fences.has(k) ? 'o_fence' : OBST_SPR[q]; if (!drawSprite(c, id, ox + x * cs + cs / 2, oy + y * cs + cs / 2, Math.floor(cs * 0.8 / 16) * 16 || 16, 0)) c.fillText(OBST[q], ox + x * cs + cs / 2, oy + y * cs + cs / 2); }
+  for (const k of B.obst) { const [x, y] = k.split(',').map(Number); const q = (x * 3 + y) % OBST_SPR.length, id = B.barrels.has(k) ? 'o_barrel' : B.fences.has(k) ? 'o_fence' : OBST_SPR[q]; drawSprite(c, id, ox + x * cs + cs / 2, oy + y * cs + cs / 2, Math.floor(cs * 0.8 / 16) * 16 || 16, 0); }
   for (const st of B.stacks) {
     if (!alive(st)) continue;
     st.px += (st.x - st.px) * 0.35; st.py += (st.y - st.py) * 0.35;
@@ -195,21 +191,21 @@ function drawBattle() {
     if (st === s) { c.strokeStyle = '#ffd21a'; c.lineWidth = 4; c.beginPath(); c.arc(X, Y, cs * 0.44 + Math.sin(now / 150) * 2, 0, 7); c.stroke(); }
     c.fillStyle = own >= 0 ? pcol(own) : '#8a8a8a'; c.globalAlpha = 0.55; c.beginPath(); c.arc(X, Y, cs * 0.4, 0, 7); c.fill(); c.globalAlpha = 1;
     c.save(); c.translate(X, Y); if (st.side === 1) c.scale(-1, 1);
-    if (!drawSprite(c, st.u, 0, -cs * 0.04, Math.floor(cs * 0.8 / 16) * 16 || 16, st.id)) { c.font = Math.round(cs * 0.58) + 'px serif'; c.fillText(UNITS[st.u].em, 0, 2); } c.restore();
+    drawSprite(c, st.u, 0, -cs * 0.04, Math.floor(cs * 0.8 / 16) * 16 || 16, st.id); c.restore();
     if (st.flash > 0) { c.fillStyle = `rgba(255,40,40,${st.flash * 0.5})`; c.beginPath(); c.arc(X, Y, cs * 0.4, 0, 7); c.fill(); st.flash = Math.max(0, st.flash - 0.05); }
-    if (st.defd && !drawSprite(c, 'i_def', X - cs * 0.32, Y - cs * 0.3, 16, 0)) { c.font = Math.round(cs * 0.25) + 'px serif'; c.fillText('🛡️', X - cs * 0.32, Y - cs * 0.3); }
+    if (st.defd) drawSprite(c, 'i_def', X - cs * 0.32, Y - cs * 0.3, 16, 0);
     const label = String(st.n); c.font = `bold ${Math.round(cs * 0.22)}px sans-serif`;
     const w = c.measureText(label).width + 8; c.fillStyle = own >= 0 ? pcol(own) : '#666'; c.fillRect(X + cs * 0.42 - w, Y + cs * 0.22, w, cs * 0.26); c.fillStyle = '#000'; c.fillText(label, X + cs * 0.42 - w / 2, Y + cs * 0.36);
   }
   for (const f of B.fx) {
     f.t += 1 / 60;
-    if (f.shot) { const q = Math.min(1, f.t / 0.25), X = ox + (f.fx0 + (f.x - f.fx0) * q) * cs + cs / 2, Y = oy + (f.fy0 + (f.y - f.fy0) * q) * cs + cs / 2 - Math.sin(q * Math.PI) * cs; c.font = Math.round(cs * 0.3) + 'px serif'; c.fillText('💥', X, Y); continue; }
+    if (f.shot) { const q = Math.min(1, f.t / 0.25), X = ox + (f.fx0 + (f.x - f.fx0) * q) * cs + cs / 2, Y = oy + (f.fy0 + (f.y - f.fy0) * q) * cs + cs / 2 - Math.sin(q * Math.PI) * cs; c.fillStyle = '#ffd21a'; c.beginPath(); c.arc(X, Y, cs * 0.09, 0, 7); c.fill(); c.strokeStyle = '#1a1320'; c.lineWidth = 2; c.stroke(); continue; }
     c.globalAlpha = Math.max(0, 1 - f.t / 1.2); c.font = `bold ${Math.round(cs * 0.28)}px sans-serif`; c.fillStyle = '#000'; c.fillText(f.text, ox + f.x * cs + cs / 2 + 2, oy + f.y * cs - f.t * 40 + 2); c.fillStyle = f.col; c.fillText(f.text, ox + f.x * cs + cs / 2, oy + f.y * cs - f.t * 40); c.globalAlpha = 1;
   }
   B.fx = B.fx.filter(f => f.t < (f.shot ? 0.3 : 1.2));
   // очередь ходов
   const q = [s, ...B.queue.filter(alive)].filter(Boolean).slice(0, 10);
-  q.forEach((st, i) => { const X = 20 + i * 46, Y = VH - 120; c.fillStyle = B.sides[st.side].owner >= 0 ? pcol(B.sides[st.side].owner) : '#777'; c.fillRect(X, Y, 40, 40); if (!drawSprite(c, st.u, X + 20, Y + 20, 32, 0)) { c.font = '26px serif'; c.fillStyle = '#000'; c.fillText(UNITS[st.u].em, X + 20, Y + 21); } if (i === 0) { c.strokeStyle = '#fff'; c.lineWidth = 3; c.strokeRect(X, Y, 40, 40); } });
+  q.forEach((st, i) => { const X = 20 + i * 46, Y = VH - 120; c.fillStyle = B.sides[st.side].owner >= 0 ? pcol(B.sides[st.side].owner) : '#777'; c.fillRect(X, Y, 40, 40); drawSprite(c, st.u, X + 20, Y + 20, 32, 0); if (i === 0) { c.strokeStyle = '#fff'; c.lineWidth = 3; c.strokeRect(X, Y, 40, 40); } });
 }
 
 // ---------- ввод ----------
@@ -271,25 +267,25 @@ const anyOverlay = () => ['modal', 'town', 'exch', 'curtain', 'menu'].some(id =>
 function refresh() {
   if (!G) return;
   const watch = BOTTING || netWatching(), p = watch ? viewP() : curP(), inc = dailyIncome(p.id);
-  $('pName').innerHTML = `${ico('t_' + p.fac, 28, FACTIONS[p.fac].em)} ${esc(p.name)}`; $('pName').style.color = p.col;
-  $('pDay').innerHTML = watch ? `<b style="color:${curP().col}">${isBot(G.cur) ? '🤖' : '🌐'} Ходит: ${curP().name}…</b>` : `Неделя ${weekNo()}, день ${dayOfWeek()} · всего дней: ${G.day}`;
+  $('pName').innerHTML = `${ico('t_' + p.fac, 28)} ${esc(p.name)}`; $('pName').style.color = p.col;
+  $('pDay').innerHTML = watch ? `<b style="color:${curP().col}">${ico(isBot(G.cur) ? 'i_bot' : 'i_net', 16)} Ходит: ${esc(curP().name)}…</b>` : `Неделя ${weekNo()}, день ${dayOfWeek()} · всего дней: ${G.day}`;
   $('endBtn').disabled = watch;
   netBox(); netDirty();
   $('pRes').innerHTML = RES.map(r => `<div>${resIco(r, 22)} ${p.res[r]}<small>+${inc[r]}/день</small></div>`).join('');
   $('heroList').innerHTML = myHeroes(p.id).map(h => `<div class="li ${h.id === UI.sel ? 'on' : ''}" data-h="${h.id}"><span class="em">${heroIco(h, 32)}</span><span>${h.name}<br><small>ур. ${h.lvl}</small></span><span class="mpb"><i style="width:${Math.round(100 * h.mp / heroMaxMp(h))}%"></i></span></div>`).join('') || '<small>Героев нет — наймите в городе</small>';
-  $('townList').innerHTML = myTowns(p.id).map(t => `<div class="li" data-t="${t.id}"><span class="em">${ico('t_' + t.fac, 32, '🏢')}</span><span>${t.name}<br><small>${t.builtDay === G.day ? 'сегодня уже строили' : 'можно строить'}</small></span></div>`).join('') || '<small>Городов нет! Захватите любой за 7 дней</small>';
+  $('townList').innerHTML = myTowns(p.id).map(t => `<div class="li" data-t="${t.id}"><span class="em">${ico('t_' + t.fac, 32)}</span><span>${t.name}<br><small>${t.builtDay === G.day ? 'сегодня уже строили' : 'можно строить'}</small></span></div>`).join('') || '<small>Городов нет! Захватите любой за 7 дней</small>';
   document.querySelectorAll('[data-h]').forEach(el => el.onclick = () => { if (!locked()) selectHero(heroById(+el.dataset.h)); });
   document.querySelectorAll('[data-t]').forEach(el => el.onclick = () => { if (!locked()) { const t = G.objs.find(o => o.id === +el.dataset.t); openTown(t, heroAt(t.x, t.y)); } });
   const h = selHero();
   if (h) {
     const s = heroStats(h), nx = xpFor(h.lvl + 1), px = xpFor(h.lvl);
-    $('hCard').innerHTML = `<div style="display:flex;gap:10px;align-items:center"><span style="font-size:42px">${heroIco(h, 56)}</span><div><b style="font-size:17px">${h.name}</b><br><small>${FACTIONS[h.fac].name} · уровень ${h.lvl}${SPECS[h.spec] ? `<br>★ ${SPECS[h.spec].name}: ${SPECS[h.spec].desc}` : ''}</small></div></div>
-      <div class="stats"><div>${ico('i_att', 18, '⚔️')}${s.att}<small>атака</small></div><div>${ico('i_def', 18, '🛡️')}${s.def}<small>защита</small></div><div>${ico('i_pow', 18, '😎')}${s.pow}<small>понты</small></div><div>${ico('i_mana', 18, '💧')}${h.mana}<small>из ${maxMana(h)}</small></div></div>
+    $('hCard').innerHTML = `<div style="display:flex;gap:10px;align-items:center"><span style="font-size:42px">${heroIco(h, 56)}</span><div><b style="font-size:17px">${h.name}</b><br><small>${FACTIONS[h.fac].name} · уровень ${h.lvl}${SPECS[h.spec] ? `<br>${ico('i_star', 12)} ${SPECS[h.spec].name}: ${SPECS[h.spec].desc}` : ''}</small></div></div>
+      <div class="stats"><div>${ico('i_att', 18)}${s.att}<small>атака</small></div><div>${ico('i_def', 18)}${s.def}<small>защита</small></div><div>${ico('i_pow', 18)}${s.pow}<small>понты</small></div><div>${ico('i_mana', 18)}${h.mana}<small>из ${maxMana(h)}</small></div></div>
       <small>Ход: ${Math.floor(h.mp)} / ${heroMaxMp(h)}</small><div class="bar"><i style="width:${100 * h.mp / heroMaxMp(h)}%;background:#6f6"></i></div>
       <small>Опыт: ${h.xp} / ${nx}</small><div class="bar"><i style="width:${100 * (h.xp - px) / (nx - px)}%;background:#fc3"></i></div>
       <div class="slots">${h.army.map(a => `<div class="slot" title="${a ? UNITS[a.u].name : ''}">${a ? unitIcon(a.u, 40) + `<b>${a.n}</b>` : ''}</div>`).join('')}</div>
-      <div class="arts">${h.arts.map(a => `<span title="${ARTS[a].name}: ${ARTS[a].desc}">${ico('a_' + a, 32, ARTS[a].em)}</span>`).join('') || '<small>Артефактов нет</small>'}</div>
-      ${G.heroes.filter(o => o.owner === h.owner && o !== h && Math.max(Math.abs(o.x - h.x), Math.abs(o.y - h.y)) <= 1).map(o => `<button class="sec" data-ex="${o.id}" style="margin-top:6px">🤝 Обмен с ${o.name}</button>`).join('')}`;
+      <div class="arts">${h.arts.map(a => `<span title="${ARTS[a].name}: ${ARTS[a].desc}">${ico('a_' + a, 32)}</span>`).join('') || '<small>Артефактов нет</small>'}</div>
+      ${G.heroes.filter(o => o.owner === h.owner && o !== h && Math.max(Math.abs(o.x - h.x), Math.abs(o.y - h.y)) <= 1).map(o => `<button class="sec" data-ex="${o.id}" style="margin-top:6px">${ico('i_meet', 16)} Обмен с ${o.name}</button>`).join('')}`;
     document.querySelectorAll('[data-ex]').forEach(el => el.onclick = () => { if (!locked()) openExchange(h, heroById(+el.dataset.ex)); });
   } else $('hCard').innerHTML = '<small>Выберите героя</small>';
   $('goBtn').disabled = watch || !h || (!h.dest && !UI.plan);

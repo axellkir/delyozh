@@ -8,7 +8,7 @@ const clamp = (v, a, b) => (v < a ? a : v > b ? b : v);
 const $ = id => document.getElementById(id);
 
 const RES = ['gold', 'fuel', 'brick'];
-const RES_ICON = { gold: '💵', fuel: '⛽', brick: '🧱' };
+const RES_GEN = { gold: 'бабла', fuel: 'бензина', brick: 'кирпича' }; // «+600 бабла в день»
 const RES_NAME = { gold: 'Бабло', fuel: 'Бензин', brick: 'Кирпич' };
 const PCOL = ['#e8343c', '#f5c42c', '#2fb8ea', '#4cc552', '#b97cf5', '#f08a2c'];
 const PCOL_NAME = ['Красные', 'Жёлтые', 'Синие', 'Зелёные', 'Фиолетовые', 'Рыжие'];
@@ -22,38 +22,38 @@ const MAP_ART = false;
 // stun (может лишить хода), pierce (бьёт насквозь), rage (злость), splash (по площади), dodge (уворот от выстрелов), heal (лечит своих), stink (вонь)
 const UNITS = {
   // Качалка: сила и наглость
-  shpana: { name: 'Шпана', em: '👦', tier: 1, att: 4, def: 2, dmg: [1, 3], hp: 6, spd: 5, grow: 14, cost: { gold: 50 }, swarm: true, note: 'толпой: +15% за каждый свой отряд рядом с целью' },
-  gop: { name: 'Гопник', em: '🧢', tier: 2, att: 6, def: 4, dmg: [2, 4], hp: 13, spd: 5, grow: 9, cost: { gold: 110 }, finish: true, note: 'добивает: +40% по тем, кто уже не может ответить' },
-  boxer: { name: 'Боксёр', em: '🥊', tier: 3, att: 9, def: 6, dmg: [4, 7], hp: 26, spd: 6, grow: 6, cost: { gold: 290 }, twice: true, note: 'бьёт двойкой' },
-  byk: { name: 'Бык', em: '🐂', tier: 4, att: 12, def: 12, dmg: [10, 16], hp: 75, spd: 4, grow: 3, cost: { gold: 680, fuel: 1 }, charge: true, note: 'разбег: +8% урона за каждую клетку пути' },
-  champ: { name: 'Чемпион на «бэхе»', em: '🚘', tier: 5, att: 17, def: 13, dmg: [26, 40], hp: 170, spd: 9, grow: 1, cost: { gold: 2200, fuel: 2 }, noRet: true, charge: true, note: 'таран без ответки, с разбега ещё больнее' },
+  shpana: { name: 'Шпана', tier: 1, att: 4, def: 2, dmg: [1, 3], hp: 6, spd: 5, grow: 14, cost: { gold: 50 }, swarm: true, note: 'толпой: +15% за каждый свой отряд рядом с целью' },
+  gop: { name: 'Гопник', tier: 2, att: 6, def: 4, dmg: [2, 4], hp: 13, spd: 5, grow: 9, cost: { gold: 110 }, finish: true, note: 'добивает: +40% по тем, кто уже не может ответить' },
+  boxer: { name: 'Боксёр', tier: 3, att: 9, def: 6, dmg: [4, 7], hp: 26, spd: 6, grow: 6, cost: { gold: 290 }, twice: true, note: 'бьёт двойкой' },
+  byk: { name: 'Бык', tier: 4, att: 12, def: 12, dmg: [10, 16], hp: 75, spd: 4, grow: 3, cost: { gold: 680, fuel: 1 }, charge: true, note: 'разбег: +8% урона за каждую клетку пути' },
+  champ: { name: 'Чемпион на «бэхе»', tier: 5, att: 17, def: 13, dmg: [26, 40], hp: 170, spd: 9, grow: 1, cost: { gold: 2200, fuel: 2 }, noRet: true, charge: true, note: 'таран без ответки, с разбега ещё больнее' },
   // Рынок: стрелки и толстые
-  chelnok: { name: 'Челнок', em: '🧳', tier: 1, att: 3, def: 2, dmg: [1, 2], hp: 7, spd: 4, grow: 12, cost: { gold: 65 }, shots: 6, slow: true, note: 'баулы под ноги: цель замедляется' },
-  babka: { name: 'Бабка с тележкой', em: '👵', tier: 2, att: 5, def: 8, dmg: [2, 3], hp: 17, spd: 4, grow: 9, cost: { gold: 100 }, curse: true, note: 'сглаз: цель теряет 3 атаки до конца боя' },
-  chop: { name: 'Охранник ЧОП', em: '💂', tier: 3, att: 8, def: 11, dmg: [4, 6], hp: 32, spd: 5, grow: 6, cost: { gold: 300 }, guard: true, note: 'отвечает на каждый удар' },
-  buh: { name: 'Бухгалтер', em: '🧮', tier: 4, att: 12, def: 8, dmg: [8, 14], hp: 48, spd: 5, grow: 3, cost: { gold: 720, fuel: 1 }, shots: 10, stun: true, note: 'проверка: 25%, что цель пропустит ход' },
-  fura: { name: 'Фура «Таможня»', em: '🚛', tier: 5, att: 15, def: 19, dmg: [24, 34], hp: 220, spd: 6, grow: 1, cost: { gold: 2200, fuel: 2 }, pierce: true, note: 'давит: достаётся и тому, кто стоит за целью' },
+  chelnok: { name: 'Челнок', tier: 1, att: 3, def: 2, dmg: [1, 2], hp: 7, spd: 4, grow: 12, cost: { gold: 65 }, shots: 6, slow: true, note: 'баулы под ноги: цель замедляется' },
+  babka: { name: 'Бабка с тележкой', tier: 2, att: 5, def: 8, dmg: [2, 3], hp: 17, spd: 4, grow: 9, cost: { gold: 100 }, curse: true, note: 'сглаз: цель теряет 3 атаки до конца боя' },
+  chop: { name: 'Охранник ЧОП', tier: 3, att: 8, def: 11, dmg: [4, 6], hp: 32, spd: 5, grow: 6, cost: { gold: 300 }, guard: true, note: 'отвечает на каждый удар' },
+  buh: { name: 'Бухгалтер', tier: 4, att: 12, def: 8, dmg: [8, 14], hp: 48, spd: 5, grow: 3, cost: { gold: 720, fuel: 1 }, shots: 10, stun: true, note: 'проверка: 25%, что цель пропустит ход' },
+  fura: { name: 'Фура «Таможня»', tier: 5, att: 15, def: 19, dmg: [24, 34], hp: 220, spd: 6, grow: 1, cost: { gold: 2200, fuel: 2 }, pierce: true, note: 'давит: достаётся и тому, кто стоит за целью' },
   // Неформалы: быстрые и прыгучие
-  punk: { name: 'Панк', em: '🤘', tier: 1, att: 5, def: 1, dmg: [2, 3], hp: 6, spd: 6, grow: 14, cost: { gold: 50 }, rage: true, note: 'злость: чем их меньше, тем больнее бьют' },
-  metal: { name: 'Металлист', em: '🎸', tier: 2, att: 6, def: 4, dmg: [2, 5], hp: 12, spd: 5, grow: 9, cost: { gold: 120 }, shots: 8, splash: true, note: 'звуковая волна задевает соседей цели' },
-  biker: { name: 'Байкер', em: '🏍️', tier: 3, att: 10, def: 6, dmg: [5, 8], hp: 28, spd: 9, grow: 5, cost: { gold: 320 }, noRet: true, charge: true, note: 'наезд без ответки, с разбега ещё больнее' },
-  raver: { name: 'Рейвер', em: '🕺', tier: 4, att: 11, def: 9, dmg: [8, 13], hp: 52, spd: 8, grow: 3, cost: { gold: 700, fuel: 1 }, fly: true, dodge: true, note: 'перепрыгивает; уворачивается от выстрелов' },
-  ekstra: { name: 'Экстрасенс', em: '🔮', tier: 5, att: 15, def: 14, dmg: [20, 30], hp: 150, spd: 7, grow: 1, cost: { gold: 2200, fuel: 2 }, shots: 12, fly: true, heal: true, note: 'каждый ход лечит самый побитый свой отряд' },
+  punk: { name: 'Панк', tier: 1, att: 5, def: 1, dmg: [2, 3], hp: 6, spd: 6, grow: 14, cost: { gold: 50 }, rage: true, note: 'злость: чем их меньше, тем больнее бьют' },
+  metal: { name: 'Металлист', tier: 2, att: 6, def: 4, dmg: [2, 5], hp: 12, spd: 5, grow: 9, cost: { gold: 120 }, shots: 8, splash: true, note: 'звуковая волна задевает соседей цели' },
+  biker: { name: 'Байкер', tier: 3, att: 10, def: 6, dmg: [5, 8], hp: 28, spd: 9, grow: 5, cost: { gold: 320 }, noRet: true, charge: true, note: 'наезд без ответки, с разбега ещё больнее' },
+  raver: { name: 'Рейвер', tier: 4, att: 11, def: 9, dmg: [8, 13], hp: 52, spd: 8, grow: 3, cost: { gold: 700, fuel: 1 }, fly: true, dodge: true, note: 'перепрыгивает; уворачивается от выстрелов' },
+  ekstra: { name: 'Экстрасенс', tier: 5, att: 15, def: 14, dmg: [20, 30], hp: 150, spd: 7, grow: 1, cost: { gold: 2200, fuel: 2 }, shots: 12, fly: true, heal: true, note: 'каждый ход лечит самый побитый свой отряд' },
   // Нейтралы с улиц
-  rat: { name: 'Крысы', em: '🐀', tier: 1, att: 2, def: 2, dmg: [1, 2], hp: 4, spd: 7, grow: 0, cost: { gold: 0 }, swarm: true, note: 'толпой: сильнее, когда цель окружена' },
-  dog: { name: 'Бродячие собаки', em: '🐕', tier: 2, att: 5, def: 3, dmg: [2, 4], hp: 11, spd: 8, grow: 0, cost: { gold: 0 }, charge: true, note: 'разбег: +8% урона за каждую клетку пути' },
-  bomzh: { name: 'Бомжи', em: '🧔', tier: 2, att: 4, def: 7, dmg: [2, 3], hp: 16, spd: 3, grow: 0, cost: { gold: 0 }, stink: true, note: 'вонь: в рукопашной по ним бьют слабее' },
-  patrol: { name: 'Патруль', em: '👮', tier: 3, att: 9, def: 9, dmg: [4, 6], hp: 30, spd: 5, grow: 0, cost: { gold: 0 }, shots: 6 },
-  omon: { name: 'Спецназ', em: '🪖', tier: 4, att: 14, def: 14, dmg: [10, 15], hp: 80, spd: 6, grow: 0, cost: { gold: 0 }, guard: true, note: 'отвечает на каждый удар' },
+  rat: { name: 'Крысы', tier: 1, att: 2, def: 2, dmg: [1, 2], hp: 4, spd: 7, grow: 0, cost: { gold: 0 }, swarm: true, note: 'толпой: сильнее, когда цель окружена' },
+  dog: { name: 'Бродячие собаки', tier: 2, att: 5, def: 3, dmg: [2, 4], hp: 11, spd: 8, grow: 0, cost: { gold: 0 }, charge: true, note: 'разбег: +8% урона за каждую клетку пути' },
+  bomzh: { name: 'Бомжи', tier: 2, att: 4, def: 7, dmg: [2, 3], hp: 16, spd: 3, grow: 0, cost: { gold: 0 }, stink: true, note: 'вонь: в рукопашной по ним бьют слабее' },
+  patrol: { name: 'Патруль', tier: 3, att: 9, def: 9, dmg: [4, 6], hp: 30, spd: 5, grow: 0, cost: { gold: 0 }, shots: 6 },
+  omon: { name: 'Спецназ', tier: 4, att: 14, def: 14, dmg: [10, 15], hp: 80, spd: 6, grow: 0, cost: { gold: 0 }, guard: true, note: 'отвечает на каждый удар' },
 };
 
 const FACTIONS = {
-  kach: { name: 'КАЧАЛКА', town: 'Качалка «Олимп»', em: '🏋️', units: ['shpana', 'gop', 'boxer', 'byk', 'champ'], desc: 'Сила и наглость. Лучший ближний бой.',
-    heroes: [{ name: 'Вован Бицепс', em: '💪', spec: 'att' }, { name: 'Толян Штанга', em: '🏋️', spec: 'def' }, { name: 'Серый', em: '😎', spec: 'xp' }, { name: 'Кабан', em: '🐗', spec: 'army' }] },
-  rynok: { name: 'РЫНОК', town: 'Рынок «Черкизон»', em: '🏪', units: ['chelnok', 'babka', 'chop', 'buh', 'fura'], desc: 'Стрелки и толстокожие. Деньги любят счёт.',
-    heroes: [{ name: 'Ашот Барахолкин', em: '🧔', spec: 'gold' }, { name: 'Тётя Зина', em: '👩', spec: 'pow' }, { name: 'Михалыч', em: '👴', spec: 'def' }, { name: 'Жора Обменник', em: '🤑', spec: 'mp' }] },
-  neform: { name: 'НЕФОРМАЛЫ', town: 'Подвал «Вечный рок»', em: '🎸', units: ['punk', 'metal', 'biker', 'raver', 'ekstra'], desc: 'Быстрые, прыгучие, непредсказуемые.',
-    heroes: [{ name: 'Кот Шаман', em: '🐱', spec: 'pow' }, { name: 'Ржавый', em: '🦊', spec: 'mp' }, { name: 'Лиса', em: '🦹', spec: 'spd' }, { name: 'Дед Металл', em: '🧙', spec: 'att' }] },
+  kach: { name: 'КАЧАЛКА', town: 'Качалка «Олимп»', units: ['shpana', 'gop', 'boxer', 'byk', 'champ'], desc: 'Сила и наглость. Лучший ближний бой.',
+    heroes: [{ name: 'Вован Бицепс', spec: 'att' }, { name: 'Толян Штанга', spec: 'def' }, { name: 'Серый', spec: 'xp' }, { name: 'Кабан', spec: 'army' }] },
+  rynok: { name: 'РЫНОК', town: 'Рынок «Черкизон»', units: ['chelnok', 'babka', 'chop', 'buh', 'fura'], desc: 'Стрелки и толстокожие. Деньги любят счёт.',
+    heroes: [{ name: 'Ашот Барахолкин', spec: 'gold' }, { name: 'Тётя Зина', spec: 'pow' }, { name: 'Михалыч', spec: 'def' }, { name: 'Жора Обменник', spec: 'mp' }] },
+  neform: { name: 'НЕФОРМАЛЫ', town: 'Подвал «Вечный рок»', units: ['punk', 'metal', 'biker', 'raver', 'ekstra'], desc: 'Быстрые, прыгучие, непредсказуемые.',
+    heroes: [{ name: 'Кот Шаман', spec: 'pow' }, { name: 'Ржавый', spec: 'mp' }, { name: 'Лиса', spec: 'spd' }, { name: 'Дед Металл', spec: 'att' }] },
 };
 const FAC_IDS = Object.keys(FACTIONS);
 
@@ -73,9 +73,9 @@ const SPECS = {
 // sim — прикидывает бой заранее, keep — какую долю армии готов сохранить после драки, slack — как часто ленится,
 // peace — до какого дня не трогает чужие бригады (местных бьёт сразу).
 const DIFF = [
-  { name: 'Лёгкий', em: '🐣', income: 0.75, edge: 2, sim: false, keep: 0.7, spells: false, slack: 0.3, heroes: 1, peace: 22, desc: 'Доход −25%, без понтов, ленится, три недели никого не трогает' },
-  { name: 'Обычный', em: '🤖', income: 1, edge: 1.5, sim: true, keep: 0.55, spells: true, slack: 0, heroes: 2, peace: 15, desc: 'Играет по тем же правилам, что и вы' },
-  { name: 'Злой', em: '😈', income: 1.25, edge: 1.3, sim: true, keep: 0.35, spells: true, slack: 0, heroes: 3, peace: 10, desc: 'Доход +25%, смелее лезет в драку, держит трёх героев' },
+  { name: 'Лёгкий', income: 0.75, edge: 2, sim: false, keep: 0.7, spells: false, slack: 0.3, heroes: 1, peace: 22, desc: 'Доход −25%, без понтов, ленится, три недели никого не трогает' },
+  { name: 'Обычный', income: 1, edge: 1.5, sim: true, keep: 0.55, spells: true, slack: 0, heroes: 2, peace: 15, desc: 'Играет по тем же правилам, что и вы' },
+  { name: 'Злой', income: 1.25, edge: 1.3, sim: true, keep: 0.35, spells: true, slack: 0, heroes: 3, peace: 10, desc: 'Доход +25%, смелее лезет в драку, держит трёх героев' },
 ];
 const BOT_LINES = {
   town: ['Слышь, это теперь наш район.', 'Город сменил крышу. Вопросы?', 'Было ваше — стало наше.'],
@@ -84,16 +84,16 @@ const BOT_LINES = {
 };
 
 const ARTS = {
-  chain: { name: 'Золотая цепь', em: '📿', desc: '+2 к атаке', att: 2 },
-  jacket: { name: 'Малиновый пиджак', em: '👔', desc: '+2 к защите', def: 2 },
-  leather: { name: 'Кожанка', em: '🧥', desc: '+1 к атаке и защите', att: 1, def: 1 },
-  phone: { name: 'Мобила-кирпич', em: '📱', desc: '+25 к ходу на карте', mp: 25 },
-  suit: { name: 'Костюм «Абибас»', em: '🎽', desc: '+1 к скорости всех отрядов', spd: 1 },
-  tape: { name: 'Кассета с боевиком', em: '📼', desc: '+3 к атаке', att: 3 },
-  pager: { name: 'Пейджер', em: '📟', desc: '+2 к понтам', pow: 2 },
-  watch: { name: 'Котлы с Арбата', em: '⌚', desc: '+400 бабла в день', gold: 400 },
-  bat: { name: 'Бита', em: '🏏', desc: '+2 к атаке, +1 к защите', att: 2, def: 1 },
-  key: { name: 'Ключ от Кремля', em: '🗝️', desc: '+4 ко всему, +1000 бабла в день', att: 4, def: 4, pow: 4, gold: 1000 },
+  chain: { name: 'Золотая цепь', desc: '+2 к атаке', att: 2 },
+  jacket: { name: 'Малиновый пиджак', desc: '+2 к защите', def: 2 },
+  leather: { name: 'Кожанка', desc: '+1 к атаке и защите', att: 1, def: 1 },
+  phone: { name: 'Мобила-кирпич', desc: '+25 к ходу на карте', mp: 25 },
+  suit: { name: 'Костюм «Абибас»', desc: '+1 к скорости всех отрядов', spd: 1 },
+  tape: { name: 'Кассета с боевиком', desc: '+3 к атаке', att: 3 },
+  pager: { name: 'Пейджер', desc: '+2 к понтам', pow: 2 },
+  watch: { name: 'Котлы с Арбата', desc: '+400 бабла в день', gold: 400 },
+  bat: { name: 'Бита', desc: '+2 к атаке, +1 к защите', att: 2, def: 1 },
+  key: { name: 'Ключ от Кремля', desc: '+4 ко всему, +1000 бабла в день', att: 4, def: 4, pow: 4, gold: 1000 },
 };
 const ART_POOL = ['chain', 'jacket', 'leather', 'phone', 'suit', 'tape', 'pager', 'watch', 'bat'];
 
@@ -116,10 +116,10 @@ const HERO_COST = 2500, MAX_HEROES = 4, MAX_SLOTS = 5, TRADE_BUY = 300, TRADE_SE
 
 // Понты — заклинания героя. Один раз за раунд боя, стоят «понты» (ману)
 const SPELLS = [
-  { id: 'naezd', name: 'Наезд', em: '💢', cost: 5, target: 'enemy', desc: p => `Урон отряду врага: ${12 + 10 * p}` },
-  { id: 'krysha', name: 'Крыша', em: '🏠', cost: 4, target: 'ally', desc: () => 'Свой отряд: +6 к защите до конца боя' },
-  { id: 'voda', name: 'Заряженная вода', em: '💧', cost: 6, target: 'ally', desc: p => `Лечит свой отряд на ${20 + 10 * p} и поднимает павших` },
-  { id: 'strelka', name: 'Забить стрелку', em: '⚡', cost: 12, target: 'all', desc: p => `Урон всем врагам: ${6 + 5 * p}` },
+  { id: 'naezd', name: 'Наезд', cost: 5, target: 'enemy', desc: p => `Урон отряду врага: ${12 + 10 * p}` },
+  { id: 'krysha', name: 'Крыша', cost: 4, target: 'ally', desc: () => 'Свой отряд: +6 к защите до конца боя' },
+  { id: 'voda', name: 'Заряженная вода', cost: 6, target: 'ally', desc: p => `Лечит свой отряд на ${20 + 10 * p} и поднимает павших` },
+  { id: 'strelka', name: 'Забить стрелку', cost: 12, target: 'all', desc: p => `Урон всем врагам: ${6 + 5 * p}` },
 ];
 
 // События начала недели — по радио «Европа плюс»
@@ -138,14 +138,14 @@ const WEEK_EVENTS = [
 const xpFor = L => 500 * (L - 1) * L / 2;
 
 const BONUS = {
-  att: { name: 'Подвальная качалка', em: '🏋️', text: 'Позанимались с железом: +1 к атаке.' },
-  def: { name: 'Секция самбо', em: '🥋', text: 'Научились падать: +1 к защите.' },
-  pow: { name: 'Видеосалон', em: '📺', text: 'Насмотрелись боевиков: +1 к понтам.' },
-  xp: { name: 'Библиотека', em: '📚', text: 'Почитали «Как стать богатым»: +1000 опыта.' },
-  mp: { name: 'Шаурма', em: '🌯', text: 'Перекусили шаурмой: +40 к ходу сегодня.' },
+  att: { name: 'Подвальная качалка', text: 'Позанимались с железом: +1 к атаке.' },
+  def: { name: 'Секция самбо', text: 'Научились падать: +1 к защите.' },
+  pow: { name: 'Видеосалон', text: 'Насмотрелись боевиков: +1 к понтам.' },
+  xp: { name: 'Библиотека', text: 'Почитали «Как стать богатым»: +1000 опыта.' },
+  mp: { name: 'Шаурма', text: 'Перекусили шаурмой: +40 к ходу сегодня.' },
 };
 const MINE = {
-  gold: { name: 'Ларёк', em: '🏪', res: 'gold', amt: 600 },
-  fuel: { name: 'Бензоколонка', em: '⛽', res: 'fuel', amt: 2 },
-  brick: { name: 'Стройка', em: '🏗️', res: 'brick', amt: 2 },
+  gold: { name: 'Ларёк', res: 'gold', amt: 600 },
+  fuel: { name: 'Бензоколонка', res: 'fuel', amt: 2 },
+  brick: { name: 'Стройка', res: 'brick', amt: 2 },
 };

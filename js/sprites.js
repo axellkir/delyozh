@@ -2,7 +2,7 @@
 // Пиксельные спрайты бойцов 16×16, нарисованные кодом: без файлов картинок и одинаковые на любой системе.
 // Люди собираются из одного «манекена» с параметрами (шапка, причёска, одежда, предмет в руке),
 // техника и звери рисуются прямоугольниками. У каждого два кадра — бойцы слегка «дышат».
-// Если спрайта нет, игра рисует эмодзи, как раньше: drawSprite вернёт false.
+// Если спрайта нет, drawSprite вернёт false.
 
 const SPRITES = {}; // id → { frames: [canvas, canvas], url }
 const SPR_INK = '#1a1320';
@@ -161,9 +161,9 @@ function buildSprites() {
   for (const id in SPR_HUMANS) put(id, b => sprHuman(SPR_HUMANS[id], b));
   for (const id in SPR_CUSTOM) put(id, b => { const g = sprGrid(); SPR_CUSTOM[id](g, b); return g; });
 }
-try { buildSprites(); } catch (e) { console.warn('Спрайты не собрались, рисуем эмодзи', e); }
+try { buildSprites(); } catch (e) { console.warn('Спрайты не собрались', e); }
 
-// Рисует спрайт с центром в (cx, cy). Возвращает false, если такого спрайта нет — тогда рисуйте эмодзи.
+// Рисует спрайт с центром в (cx, cy). Возвращает false, если такого спрайта нет.
 function drawSprite(c, id, cx, cy, size, phase) {
   const s = SPRITES[id]; if (!s) return false;
   const f = s.frames[Math.floor(performance.now() / 420 + (phase || 0)) % 2], sm = c.imageSmoothingEnabled;
@@ -172,5 +172,5 @@ function drawSprite(c, id, cx, cy, size, phase) {
   c.imageSmoothingEnabled = sm;
   return true;
 }
-// Значок бойца для HTML: картинка, если спрайт есть, иначе эмодзи
-function unitIcon(u, size) { const s = SPRITES[u]; return s ? `<img class="spr" src="${s.url}" width="${size}" height="${size}" alt="">` : UNITS[u].em; }
+// Значок бойца для HTML
+function unitIcon(u, size) { const s = SPRITES[u]; return s ? `<img class="spr" src="${s.url}" width="${size}" height="${size}" alt="">` : ''; }
