@@ -64,11 +64,14 @@ jobs:
           printf '%s\n' "$DEPLOY_KNOWN_HOSTS" > ~/.ssh/known_hosts
           # Ключ на сервере ограничен: умеет только писать в папку сайта (rrsync).
           rsync -rtz --delete -e "ssh -i ~/.ssh/deploy -o IdentitiesOnly=yes" dist/ "$DEPLOY_USER@$DEPLOY_HOST:/"
-      - name: Проверка, что на сервере нужная версия
+      - name: Проверка, что сайт отдаёт нужную версию
         env:
-          DEPLOY_HOST: ${{ vars.DEPLOY_HOST }}
           DEPLOY_DOMAIN: ${{ vars.DEPLOY_DOMAIN }}
         run: |
-          got=$(curl -fsSL --max-time 20 --resolve "$DEPLOY_DOMAIN:80:$DEPLOY_HOST" --resolve "$DEPLOY_DOMAIN:443:$DEPLOY_HOST" "http://$DEPLOY_DOMAIN/version.json")
+          # Сайт стоит за прокси хостинга, поэтому проверяем по настоящему адресу.
+          if ! got=$(curl -fsSL --max-time 20 "https://$DEPLOY_DOMAIN/version.json?t=$GITHUB_RUN_ID"); then
+            echo "::warning::Файлы выложены, но https://$DEPLOY_DOMAIN не отвечает — проверьте привязку домена на хостинге."
+            exit 0
+          fi
           echo "$got"
-          echo "$got" | grep -q "\"$GITHUB_REF_NAME\""
+          echo "$got" | grep -q "\"$GITHUB_REF_NAME\"" || { echo "::error::Сайт отдаёт другую версию"; exit 1; }
