@@ -1,6 +1,7 @@
 // Автотест без окна: открывает игру в Chrome, бот играет партии за всех игроков.
 // Падает, если в игре случилась ошибка. Запуск: npm test  (TEST_ROOT=dist — проверить сборку)
-import http from 'node:http';
+import os from 'node:os';
+import { spawn } from 'node:child_process';
 import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -29,17 +30,11 @@ function findChrome() {
   return hit;
 }
 
-const types = { '.html': 'text/html; charset=utf-8', '.js': 'text/javascript; charset=utf-8', '.json': 'application/json', '.png': 'image/png' };
-const server = http.createServer((req, res) => {
-  const file = path.join(root, decodeURIComponent(req.url.split('?')[0]).replace(/^\/$/, '/index.html'));
-  if (!file.startsWith(root)) { res.writeHead(403).end(); return; }
-  fs.readFile(file, (err, data) => {
-    if (err) { res.writeHead(404).end(); return; }
-    res.writeHead(200, { 'Content-Type': types[path.extname(file)] || 'application/octet-stream' }); res.end(data);
-  });
-});
-await new Promise(r => server.listen(0, '127.0.0.1', r));
-const url = `http://127.0.0.1:${server.address().port}/`;
+// настоящий сервер: игра и комнаты вместе, как при локальном запуске
+const port = 15000 + Math.floor(Math.random() * 2000), data = fs.mkdtempSync(path.join(os.tmpdir(), 'delyozh-'));
+const server = spawn(process.execPath, [path.join(repo, 'server', 'server.mjs')], { env: { ...process.env, PORT: String(port), HOST: '127.0.0.1', STATIC_DIR: root, DATA_DIR: data }, stdio: ['ignore', 'pipe', 'inherit'] });
+await new Promise(r => server.stdout.once('data', r));
+const url = `http://127.0.0.1:${port}/`;
 
 const browser = await puppeteer.launch({ executablePath: findChrome(), headless: true, protocolTimeout: 600000, args: ['--no-sandbox', '--mute-audio'] });
 const bot = fs.readFileSync(path.join(repo, 'tests', 'bot.js'), 'utf8');
@@ -69,6 +64,7 @@ try {
     if (errors.length) { failed++; console.log(`✗ ${sc.name}: ${tail}`); errors.slice(0, 5).forEach(e => console.log('    ' + e.split('\n').slice(0, 4).join('\n    '))); }
     else console.log(`✓ ${sc.name}: ${r.over ? 'партия доиграна' : `партия не закончилась за ${DAYS} дней (не ошибка)`}, ${tail}`);
   }
-} finally { await browser.close(); server.close(); }
+} finally { await browser.close(); server.kill(); fs.rmSync(data, { recursive: true, force: true }); }
 if (failed) { console.log(`\nУпало сценариев: ${failed}`); process.exit(1); }
 console.log('\nВсе сценарии прошли.');
+process.exit(0);

@@ -4,7 +4,7 @@
 // opt.pid — для какой бригады окно (по умолчанию — чей ход). За бота отвечает он сам, окно не показывается.
 function ask(title, html, buttons, opt) {
   const pid = opt && opt.pid != null ? opt.pid : G ? G.cur : -1;
-  if (isBot(pid) && !G.over) return Promise.resolve(botAnswer(pid, title, buttons));
+  if ((isBot(pid) || netRemote(pid)) && !G.over) return Promise.resolve(botAnswer(pid, title, buttons)); // за игрока с другого компьютера окна тоже не показываем
   return new Promise(res => {
     $('mTitle').textContent = title; $('mBody').innerHTML = html;
     $('mBtns').innerHTML = buttons.map((b, i) => `<button data-i="${i}" class="${i ? 'sec' : ''}">${b}</button>`).join('');
@@ -139,53 +139,119 @@ try { if (localStorage.getItem('delyozh_map') === 'ring') mapKind = 'ring'; } ca
 const esc = t => String(t).replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
 
 function renderMenu() {
+  // в сетевой комнате места общие и приходят с сервера; за одним компьютером — свои, из настроек
+  const R = NET.on && NET.room && NET.room.state === 'lobby' ? NET.room : null, list = R ? R.seats : seats, host = !R || R.host;
   const card = (p, i) => {
     const F = FACTIONS[p.fac], hc = F.heroes[p.hero], on = p.kind !== 'off';
-    const head = `<div class="phead"><b style="color:${PCOL[i]}">● ${PCOL_NAME[i]}</b><div class="seg">${KINDS.map(([k, em, t]) => `<span class="${p.kind === k ? 'on' : ''}" data-seat="${i}" data-kind="${k}" title="${t}">${em}</span>`).join('')}</div></div>`;
-    if (!on) return `<div class="pcard off" style="border-color:${PCOL[i]}">${head}<div class="poff">место закрыто<br><small>нажмите 👤 или 🤖</small></div></div>`;
+    const edit = R ? p.owner === 'me' || (host && !p.owner) : true; // кто может менять бригаду и героя на этом месте
+    const head = `<div class="phead"><b style="color:${PCOL[i]}">● ${PCOL_NAME[i]}</b><div class="seg ${host ? '' : 'ro'}">${KINDS.map(([k, em, t]) => `<span class="${p.kind === k ? 'on' : ''}" data-seat="${i}" data-kind="${k}" title="${t}">${em}</span>`).join('')}</div></div>`;
+    if (!on) return `<div class="pcard off" style="border-color:${PCOL[i]}">${head}<div class="poff">место закрыто${host ? '<br><small>нажмите 👤 или 🤖</small>' : ''}</div></div>`;
+    let who = '';
+    if (R && p.kind === 'human') who = p.owner === 'me' ? `<small>🟢 это вы${list.filter(x => x.owner === 'me').length > 1 ? ' (ещё одно место за этим компьютером)' : ''} · <a href="#" data-seat="${i}" data-leave="1">встать</a></small>`
+      : p.owner ? `<small>${p.online ? '🟢' : '⚪'} ${esc(p.ownerName || 'игрок')}${host ? ` · <a href="#" data-seat="${i}" data-leave="1">убрать</a>` : ''}</small>`
+        : `<button data-seat="${i}" data-claim="1">Сесть сюда</button>`;
     return `<div class="pcard" style="border-color:${PCOL[i]}">${head}
-      <input data-pn="${i}" value="${esc(p.name)}" maxlength="16" placeholder="Название бригады">
-      <div class="seg wide">${FAC_IDS.map(f => `<span class="${p.fac === f ? 'on' : ''}" data-seat="${i}" data-fac="${f}" title="${FACTIONS[f].desc}">${FACTIONS[f].em} ${FACTIONS[f].name[0] + FACTIONS[f].name.slice(1).toLowerCase()}</span>`).join('')}</div>
+      <input data-pn="${i}" value="${esc(p.name)}" maxlength="16" placeholder="Название бригады" ${edit ? '' : 'disabled'}>${who}
+      <div class="seg wide ${edit ? '' : 'ro'}">${FAC_IDS.map(f => `<span class="${p.fac === f ? 'on' : ''}" data-seat="${i}" data-fac="${f}" title="${FACTIONS[f].desc}">${FACTIONS[f].em} ${FACTIONS[f].name[0] + FACTIONS[f].name.slice(1).toLowerCase()}</span>`).join('')}</div>
       <small>${F.desc}</small>
-      <div class="seg wide heroes"><span class="${hc ? '' : 'on'}" data-seat="${i}" data-hero="-1" title="Случайный герой">🎲</span>${F.heroes.map((c, k) => `<span class="${p.hero === k ? 'on' : ''}" data-seat="${i}" data-hero="${k}" title="${c.name} — ${SPECS[c.spec].name}: ${SPECS[c.spec].desc}">${c.em}</span>`).join('')}</div>
+      <div class="seg wide heroes ${edit ? '' : 'ro'}"><span class="${hc ? '' : 'on'}" data-seat="${i}" data-hero="-1" title="Случайный герой">🎲</span>${F.heroes.map((c, k) => `<span class="${p.hero === k ? 'on' : ''}" data-seat="${i}" data-hero="${k}" title="${c.name} — ${SPECS[c.spec].name}: ${SPECS[c.spec].desc}">${c.em}</span>`).join('')}</div>
       <small>${hc ? `<b>${hc.name}</b> · ★ ${SPECS[hc.spec].name}: ${SPECS[hc.spec].desc}` : 'Герой: какой придёт'}</small>
-      ${p.kind === 'bot' ? `<div class="seg wide">${DIFF.map((d, k) => `<span class="${p.diff === k ? 'on' : ''}" data-seat="${i}" data-diff="${k}" title="${d.desc}">${d.em} ${d.name}</span>`).join('')}</div><small>${DIFF[p.diff].desc}</small>` : ''}</div>`;
+      ${p.kind === 'bot' ? `<div class="seg wide ${host ? '' : 'ro'}">${DIFF.map((d, k) => `<span class="${p.diff === k ? 'on' : ''}" data-seat="${i}" data-diff="${k}" title="${d.desc}">${d.em} ${d.name}</span>`).join('')}</div><small>${DIFF[p.diff].desc}</small>` : ''}</div>`;
   };
-  $('pset').innerHTML = seats.map(card).join('');
-  const act = seats.filter(p => p.kind !== 'off'), hum = act.filter(p => p.kind === 'human').length;
-  $('lobbyNote').textContent = act.length < 2 ? 'Нужно хотя бы две бригады' : !hum ? 'Нужен хотя бы один человек' : `Бригад: ${act.length} · людей: ${hum}, ботов: ${act.length - hum}${act.length > 3 ? ' · карта больше обычной' : ''}`;
-  $('newBtn').disabled = act.length < 2 || !hum;
-  document.querySelectorAll('[data-pn]').forEach(el => el.oninput = () => { seats[+el.dataset.pn].name = el.value; saveLobby(); });
-  document.querySelectorAll('#pset [data-seat]').forEach(el => el.onclick = () => {
-    const p = seats[+el.dataset.seat], d = el.dataset;
+  $('pset').innerHTML = list.map(card).join('');
+  const act = list.filter(p => p.kind !== 'off'), hum = act.filter(p => p.kind === 'human').length, free = R ? act.filter(p => p.kind === 'human' && !p.owner).length : 0;
+  $('lobbyNote').textContent = act.length < 2 ? 'Нужно хотя бы две бригады' : !hum ? 'Нужен хотя бы один человек'
+    : free ? `Ждём игроков: свободных мест ${free}. Отправьте друзьям ссылку или код комнаты.`
+      : `Бригад: ${act.length} · людей: ${hum}, ботов: ${act.length - hum}${act.length > 3 ? ' · карта больше обычной' : ''}${R && !host ? ' · ждём, когда хозяин комнаты начнёт' : ''}`;
+  $('newBtn').disabled = act.length < 2 || !hum || free > 0 || !host;
+  $('newBtn').textContent = R ? '▶ Начать партию' : '🎲 Новая игра';
+  $('contBtn').hidden = !!R;
+  document.querySelectorAll('[data-pn]').forEach(el => {
+    if (R) el.onchange = () => netOp('set', { seat: +el.dataset.pn, seatName: el.value });
+    else el.oninput = () => { seats[+el.dataset.pn].name = el.value; saveLobby(); };
+  });
+  document.querySelectorAll('#pset [data-seat]').forEach(el => el.onclick = e => {
+    const i = +el.dataset.seat, d = el.dataset;
+    if (el.closest('.ro')) return;
+    sfx('click');
+    if (R) {
+      e.preventDefault();
+      if (d.claim) netOp('claim', { seat: i });
+      else if (d.leave) netOp('leave', { seat: i });
+      else if (d.kind) netOp('kind', { seat: i, kind: d.kind });
+      else netOp('set', { seat: i, ...(d.fac && { fac: d.fac }), ...(d.hero && { hero: +d.hero }), ...(d.diff && { diff: +d.diff }) });
+      return;
+    }
+    const p = seats[i];
     if (d.kind) p.kind = d.kind;
     if (d.fac && d.fac !== p.fac) { p.fac = d.fac; p.hero = -1; }
     if (d.hero) p.hero = +d.hero;
     if (d.diff) p.diff = +d.diff;
-    sfx('click'); saveLobby(); renderMenu();
+    saveLobby(); renderMenu();
   });
-  $('mapSeg').innerHTML = MAPS.map(([k, t, d]) => `<span class="${mapKind === k ? 'on' : ''}" data-map="${k}" title="${d}">${t}</span>`).join('');
-  $('mapNote').textContent = MAPS.find(m => m[0] === mapKind)[2];
-  document.querySelectorAll('[data-map]').forEach(el => el.onclick = () => { mapKind = el.dataset.map; try { localStorage.setItem('delyozh_map', mapKind); } catch (e) { /* не страшно */ } sfx('click'); renderMenu(); });
+  const mk = R ? R.map : mapKind;
+  $('mapSeg').className = 'seg' + (host ? '' : ' ro');
+  $('mapSeg').innerHTML = MAPS.map(([k, t, d]) => `<span class="${mk === k ? 'on' : ''}" data-map="${k}" title="${d}">${t}</span>`).join('');
+  $('mapNote').textContent = MAPS.find(m => m[0] === mk)[2];
+  document.querySelectorAll('[data-map]').forEach(el => el.onclick = () => {
+    if (!host) return;
+    sfx('click');
+    if (R) { netOp('map', { map: el.dataset.map }); return; }
+    mapKind = el.dataset.map; try { localStorage.setItem('delyozh_map', mapKind); } catch (e) { /* не страшно */ } renderMenu();
+  });
+  renderNetBar(R);
   $('contBtn').disabled = !hasSave();
 }
-$('guideLink').onclick = e => { e.preventDefault(); exportMapPng(); };
+// Полоса «по сети»: создать комнату, войти по коду, список открытых комнат; в комнате — код и ссылка
+function renderNetBar(R) {
+  const el = $('netBar');
+  if (R) {
+    el.innerHTML = `<b>🌐 Комната <span class="code">${R.code}</span></b> <button class="sec" id="netCopy">Скопировать ссылку</button>
+      ${R.host ? `<label><input type="checkbox" id="netPub" ${R.public ? 'checked' : ''}> видна в списке открытых</label>` : `<small>хозяин: ${esc(R.hostName)}</small>`}
+      <button class="sec" id="netOut">Выйти из комнаты</button>`;
+    $('netCopy').onclick = () => { const link = location.origin + location.pathname + '?room=' + R.code; (navigator.clipboard ? navigator.clipboard.writeText(link) : Promise.reject()).then(() => toast('Ссылка скопирована', true), () => prompt('Ссылка на комнату:', link)); };
+    if (R.host) $('netPub').onchange = e => netOp('public', { public: e.target.checked });
+    $('netOut').onclick = () => netLeave();
+    return;
+  }
+  if (NET.list === undefined) NET.list = null;
+  const rooms = NET.list || [];
+  el.innerHTML = `<b>🌐 По сети:</b> <input id="netName" placeholder="Ваше имя" maxlength="16" value="${esc(NET.name)}" style="width:120px">
+    <button id="netNew">Создать комнату</button><label><input type="checkbox" id="netNewPub"> открытая</label>
+    <span>или код</span> <input id="netCode" maxlength="5" placeholder="ABCDE" style="width:74px;text-transform:uppercase"><button class="sec" id="netGo">Войти</button>
+    <button class="sec" id="netRef" title="Обновить список открытых комнат">⟳</button>
+    <div id="netRooms">${rooms.length ? rooms.map(r => `<span class="room" data-room="${r.code}">🚪 ${esc(r.hostName)} · ${MAPS.find(m => m[0] === r.map)[1]} · свободно мест: ${r.free} из ${r.humans}${r.bots ? ` · ботов: ${r.bots}` : ''}</span>`).join('') : '<small>Открытых комнат сейчас нет. Создайте свою и отправьте друзьям ссылку.</small>'}</div>`;
+  const name = () => { NET.name = $('netName').value.trim().slice(0, 16); try { localStorage.setItem('delyozh_name', NET.name); } catch (e) { /* не страшно */ } return NET.name; };
+  const go = fn => { audioInit(); if (!name()) { toast('Сначала впишите своё имя', true); $('netName').focus(); return; } fn().catch(e => toast(e.message, true)); };
+  $('netName').onchange = name;
+  $('netNew').onclick = () => go(() => netCreate($('netNewPub').checked));
+  $('netGo').onclick = () => go(() => netJoin($('netCode').value));
+  $('netRef').onclick = () => netList();
+  el.querySelectorAll('[data-room]').forEach(x => x.onclick = () => go(() => netJoin(x.dataset.room)));
+}
 $('newBtn').onclick = () => {
   audioInit();
+  if (NET.on && NET.room) { netStart(); return; }
   if (hasSave() && !confirm('Начать новую игру? Сохранённая партия пропадёт.')) return;
-  const players = seats.map((p, i) => ({ ...p, col: PCOL[i], name: p.name.trim() || PCOL_NAME[i] })).filter(p => p.kind !== 'off');
+  const players = seats.map((p, i) => ({ ...p, seat: i, col: PCOL[i], name: p.name.trim() || PCOL_NAME[i] })).filter(p => p.kind !== 'off');
   genMap({ players, map: mapKind });
   startPlaying();
 };
 $('contBtn').onclick = () => { audioInit(); if (loadGame()) startPlaying(); else toast('Сохранение не читается', true); };
-$('menuLink').onclick = e => { e.preventDefault(); if (BUSY || BOTTING || B) return; saveGame(); $('menu').hidden = false; renderMenu(); };
+$('menuLink').onclick = e => {
+  e.preventDefault();
+  if (NET.on) { if (confirm('Выйти из сетевой партии? Вернуться можно по той же ссылке.')) netLeave(); return; }
+  if (BUSY || BOTTING || B) return;
+  saveGame(); $('menu').hidden = false; renderMenu(); netList();
+};
 function startPlaying() { prerender(); $('menu').hidden = true; refresh(); beginTurn(); }
 function showVictory(p) {
   BOTTING = false;
   const bot = p.kind === 'bot', title = bot ? `🤖 ${p.name} забирают Москву` : `🏆 ${p.name} забирают Москву!`;
   const text = bot ? `Людей в городе не осталось — всё поделили боты. День ${G.day}. Реванш?` : `Остальные бригады распались. День ${G.day}. ${FACTIONS[p.fac].em} ${FACTIONS[p.fac].name} — хозяева города.`;
   ask(title, `<div class="fun" style="font-size:22px">${text}</div>`, ['В меню'], { pid: -1 })
-    .then(() => { $('menu').hidden = false; renderMenu(); });
+    .then(() => { if (NET.on) netLeave(); else { $('menu').hidden = false; renderMenu(); } });
 }
 addEventListener('keydown', e => { if (e.code === 'Escape' && !$('town').hidden) closeTown(); });
 renderMenu();
+netList();

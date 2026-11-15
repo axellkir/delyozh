@@ -17,6 +17,7 @@ const version = (process.env.VERSION || gitVersion()).replace(/[^\w.+-]/g, '');
 fs.rmSync(dist, { recursive: true, force: true });
 fs.mkdirSync(dist, { recursive: true });
 fs.cpSync(path.join(root, 'js'), path.join(dist, 'js'), { recursive: true });
+fs.cpSync(path.join(root, 'server', 'server.mjs'), path.join(dist, 'server', 'server.mjs'));
 if (fs.existsSync(path.join(root, 'assets'))) fs.cpSync(path.join(root, 'assets'), path.join(dist, 'assets'), { recursive: true });
 
 const verFile = path.join(dist, 'js', 'version.js');

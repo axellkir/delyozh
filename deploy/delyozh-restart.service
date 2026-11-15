@@ -1,0 +1,7 @@
+# /etc/systemd/system/delyozh-restart.service
+[Unit]
+Description=Restart Delyozh room server
+
+[Service]
+Type=oneshot
+ExecStart=/usr/bin/systemctl restart delyozh-server.service

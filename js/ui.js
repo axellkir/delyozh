@@ -77,7 +77,7 @@ function follow(h) { const sx = h.x * TS - UI.cam.x, sy = h.y * TS - UI.cam.y; i
 function selectHero(h) { UI.sel = h ? h.id : null; UI.plan = null; if (h) centerOn(h.x, h.y); refresh(); }
 const selHero = () => (UI.sel ? heroById(UI.sel) : null);
 const seen = (x, y) => viewP().seen[y * MW + x];
-const locked = () => BUSY || BOTTING;
+const locked = () => BUSY || BOTTING || netWatching();
 
 let toastT = null;
 // во время хода бота мелкие сообщения его героев людям не показываем; force — показать всё равно
@@ -250,7 +250,7 @@ addEventListener('keydown', e => {
   UI.keys[e.code] = true;
   if (B) { if (e.code === 'KeyW') battleWait(); if (e.code === 'KeyD') battleDefend(); if (e.code === 'KeyC') toggleSpells(); if (e.code === 'KeyA') battleAuto(); return; }
   if (e.code === 'KeyM') { musicOn = !musicOn; toast(musicOn ? 'Музыка вкл' : 'Музыка выкл'); }
-  if (!G || anyOverlay() || BOTTING) return;
+  if (!G || anyOverlay() || locked()) return;
   if (e.code === 'Enter') { e.preventDefault(); endTurn(); }
   if (e.code === 'Space') { e.preventDefault(); continuePath(); }
   if (e.code === 'KeyH') { const hs = myHeroes(G.cur); if (hs.length) { const i = hs.findIndex(x => x.id === UI.sel); selectHero(hs[(i + 1) % hs.length]); } }
@@ -267,10 +267,11 @@ const anyOverlay = () => ['modal', 'town', 'exch', 'curtain', 'menu'].some(id =>
 // ---------- панель ----------
 function refresh() {
   if (!G) return;
-  const p = BOTTING ? viewP() : curP(), inc = dailyIncome(p.id);
+  const watch = BOTTING || netWatching(), p = watch ? viewP() : curP(), inc = dailyIncome(p.id);
   $('pName').textContent = `${FACTIONS[p.fac].em} ${p.name}`; $('pName').style.color = p.col;
-  $('pDay').innerHTML = BOTTING ? `<b style="color:${curP().col}">🤖 Ходит: ${curP().name}…</b>` : `Неделя ${weekNo()}, день ${dayOfWeek()} · всего дней: ${G.day}`;
-  $('endBtn').disabled = BOTTING;
+  $('pDay').innerHTML = watch ? `<b style="color:${curP().col}">${isBot(G.cur) ? '🤖' : '🌐'} Ходит: ${curP().name}…</b>` : `Неделя ${weekNo()}, день ${dayOfWeek()} · всего дней: ${G.day}`;
+  $('endBtn').disabled = watch;
+  netBox(); netDirty();
   $('pRes').innerHTML = RES.map(r => `<div>${RES_ICON[r]} ${p.res[r]}<small>+${inc[r]}/день</small></div>`).join('');
   $('heroList').innerHTML = myHeroes(p.id).map(h => `<div class="li ${h.id === UI.sel ? 'on' : ''}" data-h="${h.id}"><span class="em">${h.em}</span><span>${h.name}<br><small>ур. ${h.lvl}</small></span><span class="mpb"><i style="width:${Math.round(100 * h.mp / heroMaxMp(h))}%"></i></span></div>`).join('') || '<small>Героев нет — наймите в городе</small>';
   $('townList').innerHTML = myTowns(p.id).map(t => `<div class="li" data-t="${t.id}"><span class="em">🏢</span><span>${t.name}<br><small>${t.builtDay === G.day ? 'сегодня уже строили' : 'можно строить'}</small></span></div>`).join('') || '<small>Городов нет! Захватите любой за 7 дней</small>';
@@ -288,9 +289,9 @@ function refresh() {
       ${G.heroes.filter(o => o.owner === h.owner && o !== h && Math.max(Math.abs(o.x - h.x), Math.abs(o.y - h.y)) <= 1).map(o => `<button class="sec" data-ex="${o.id}" style="margin-top:6px">🤝 Обмен с ${o.name}</button>`).join('')}`;
     document.querySelectorAll('[data-ex]').forEach(el => el.onclick = () => { if (!locked()) openExchange(h, heroById(+el.dataset.ex)); });
   } else $('hCard').innerHTML = '<small>Выберите героя</small>';
-  $('goBtn').disabled = BOTTING || !h || (!h.dest && !UI.plan);
+  $('goBtn').disabled = watch || !h || (!h.dest && !UI.plan);
 }
-$('endBtn').onclick = () => { if (!BOTTING) endTurn(); };
+$('endBtn').onclick = () => { if (!locked()) endTurn(); };
 $('goBtn').onclick = () => continuePath();
 
 // ---------- миникарта ----------

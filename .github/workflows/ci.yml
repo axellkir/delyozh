@@ -21,3 +21,5 @@ jobs:
         run: npm run build
       - name: Бот играет партии на собранной версии
         run: TEST_ROOT=dist npm test
+      - name: Два браузера играют по сети
+        run: TEST_ROOT=dist npm run test:online

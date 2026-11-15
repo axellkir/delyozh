@@ -27,6 +27,8 @@ jobs:
         run: VERSION="$GITHUB_REF_NAME" npm run build
       - name: Бот играет партии на собранной версии
         run: TEST_ROOT=dist npm test
+      - name: Два браузера играют по сети
+        run: TEST_ROOT=dist npm run test:online
       - name: Архив
         run: cd dist && zip -qr "../delyozh-$GITHUB_REF_NAME.zip" .
       - name: Релиз на GitHub
