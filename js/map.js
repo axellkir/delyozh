@@ -1,7 +1,16 @@
 'use strict';
-// Карта: симметричная Москва на три сектора — Кремль в центре, Садовое кольцо, МКАД, у каждого игрока свой район.
+// Карта: симметричная Москва, поделённая на секторы — Кремль в центре, Садовое кольцо, МКАД, у каждой бригады свой район.
+// Секторов столько же, сколько бригад (но не меньше трёх); чем их больше, тем шире МКАД, чтобы районы не сжимались.
 
-const MW = 44, MH = 44, MCX = 22, MCY = 22;
+let NSEC = 3, MR = 20, MW = 44, MH = 44, MCX = 22, MCY = 22;
+const KREMLIN_R = 4.4;
+// радиус «как на карте для троих» → настоящий радиус на этой карте
+const sr = r => (r <= KREMLIN_R ? r : KREMLIN_R + (r - KREMLIN_R) * (MR - KREMLIN_R) / (20 - KREMLIN_R));
+function setMap(nsec) {
+  NSEC = clamp(nsec || 3, 3, 6); MR = [20, 23, 26, 29][NSEC - 3];
+  MW = MH = 2 * (MR + 2); MCX = MCY = MW / 2;
+  OIDX = new Int32Array(MW * MH).fill(-1);
+}
 const T = { GROUND: 0, ROAD: 1, PARK: 2, WATER: 3, BLOCK: 4, WALL: 5, FOREST: 6 };
 const TCOST = [6, 4, 9];
 const passT = t => t <= 2;
@@ -9,6 +18,7 @@ const DIRS = [[1, 0], [-1, 0], [0, 1], [0, -1], [1, 1], [1, -1], [-1, 1], [-1, -
 
 let G = null;                 // всё состояние партии (сохраняется целиком)
 let OIDX = new Int32Array(MW * MH).fill(-1); // индекс объектов по клеткам (не сохраняется)
+const isBot = pid => pid >= 0 && !!G && !!G.players[pid] && G.players[pid].kind === 'bot';
 
 const inMap = (x, y) => x >= 0 && y >= 0 && x < MW && y < MH;
 const tileAt = (x, y) => (inMap(x, y) ? G.tiles[y * MW + x] : T.FOREST);
@@ -25,28 +35,29 @@ function vnoise(x, y, s) {
 }
 
 // угол главного направления сектора k
-const secAng = k => -Math.PI / 2 + k * 2 * Math.PI / 3;
-// клетка по «местным» координатам сектора: r — расстояние от Кремля, deg — отклонение от оси района в градусах
-function secTile(k, r, deg) { const a = secAng(k) + deg * Math.PI / 180; return [Math.round(MCX - 0.5 + r * Math.cos(a)), Math.round(MCY - 0.5 + r * Math.sin(a))]; }
+const secAng = k => -Math.PI / 2 + k * 2 * Math.PI / NSEC;
+// клетка по «местным» координатам сектора: r — расстояние от Кремля и deg — отклонение от оси района в градусах,
+// оба заданы как для карты на троих и пересчитываются под текущее число секторов
+function secTile(k, r, deg) { const a = secAng(k) + deg * (3 / NSEC) * Math.PI / 180, R = sr(r); return [Math.round(MCX - 0.5 + R * Math.cos(a)), Math.round(MCY - 0.5 + R * Math.sin(a))]; }
 
 function genTerrain(seed) {
   const tiles = new Array(MW * MH);
   for (let y = 0; y < MH; y++) for (let x = 0; x < MW; x++) {
     const dx = x + 0.5 - MCX, dy = y + 0.5 - MCY, r = Math.hypot(dx, dy), a = Math.atan2(dy, dx);
     let rel = 9;
-    for (let k = 0; k < 3; k++) { let d = a - secAng(k); d = Math.atan2(Math.sin(d), Math.cos(d)); if (Math.abs(d) < Math.abs(rel)) rel = d; }
-    const lx = r * Math.cos(rel), ly = Math.abs(r * Math.sin(rel)), side = r * Math.sin(Math.PI / 3 - Math.abs(rel));
+    for (let k = 0; k < NSEC; k++) { let d = a - secAng(k); d = Math.atan2(Math.sin(d), Math.cos(d)); if (Math.abs(d) < Math.abs(rel)) rel = d; }
+    const lx = r * Math.cos(rel), ly = Math.abs(r * Math.sin(rel)), side = r * Math.sin(Math.PI / NSEC - Math.abs(rel));
     let t = T.GROUND;
     const n1 = vnoise(lx * 0.42, ly * 0.42, seed), n2 = vnoise(lx * 0.3 + 40, ly * 0.3, seed + 7), n3 = vnoise(lx * 0.25, ly * 0.25 + 90, seed + 13);
     if (n1 > 0.64 && r > 5) t = T.BLOCK; else if (n2 > 0.6) t = T.PARK;
-    if (n3 > 0.8 && r > 11 && r < 18.5) t = T.WATER;
-    if (Math.hypot(lx - 15.5, ly) < 3.4) t = T.GROUND;            // площадка под свой город
-    if (Math.abs(r - 9.5) < 0.62) t = T.ROAD;                       // Садовое кольцо
-    if (Math.abs(r - 20) < 0.62) t = T.ROAD;                        // МКАД
-    if (ly < 0.62 && r > 3 && r < 20.5) t = T.ROAD;                 // радиальный проспект к своему району
-    if (side < 0.62 && r > 9.5 && r < 20.3) t = T.ROAD;             // дорога по границе секторов
-    if (r > 20.8) t = r > 21.6 ? T.FOREST : T.PARK;                 // за МКАДом — лес
-    if (r >= 3.3 && r < 4.4 && ly >= 0.62) t = T.WALL;              // кремлёвская стена с воротами
+    if (n3 > 0.8 && r > sr(11) && r < sr(18.5)) t = T.WATER;
+    if (Math.hypot(lx - sr(15.5), ly) < 3.4) t = T.GROUND;        // площадка под свой город
+    if (Math.abs(r - sr(9.5)) < 0.62) t = T.ROAD;                   // Садовое кольцо
+    if (Math.abs(r - MR) < 0.62) t = T.ROAD;                        // МКАД
+    if (ly < 0.62 && r > 3 && r < MR + 0.5) t = T.ROAD;             // радиальный проспект к своему району
+    if (side < 0.62 && r > sr(9.5) && r < MR + 0.3) t = T.ROAD;     // дорога по границе секторов
+    if (r > MR + 0.8) t = r > MR + 1.6 ? T.FOREST : T.PARK;         // за МКАДом — лес
+    if (r >= 3.3 && r < KREMLIN_R && ly >= 0.62) t = T.WALL;        // кремлёвская стена с воротами
     if (r < 3.3) t = T.ROAD;                                        // Красная площадь
     tiles[y * MW + x] = t;
   }
@@ -71,8 +82,10 @@ function mobArmy(level) {
 
 function genMap(cfg) {
   const seed = rnd(1, 99999);
-  G = { ver: 1, day: 1, cur: 0, nextId: 1, tiles: genTerrain(seed), objs: [], heroes: [], players: [], log: [], week: null, over: false };
-  cfg.players.forEach((p, i) => G.players.push({ id: i, name: p.name, fac: p.fac, col: PCOL[i], res: { gold: 5000, fuel: 5, brick: 10 }, alive: true, seen: new Array(MW * MH).fill(0), tavernDay: 0 }));
+  setMap(Math.max(3, cfg.players.length));
+  G = { ver: 2, nsec: NSEC, day: 1, cur: 0, view: 0, nextId: 1, tiles: genTerrain(seed), objs: [], heroes: [], players: [], log: [], week: null, over: false };
+  cfg.players.forEach((p, i) => G.players.push({ id: i, name: p.name, fac: p.fac, kind: p.kind === 'bot' ? 'bot' : 'human', diff: clamp(p.diff == null ? 1 : p.diff, 0, DIFF.length - 1), col: p.col || PCOL[i], res: { gold: 5000, fuel: 5, brick: 10 }, alive: true, seen: new Array(MW * MH).fill(0), inbox: [], tavernDay: 0 }));
+  G.view = Math.max(0, G.players.findIndex(p => p.kind !== 'bot'));
   const free = (x, y) => inMap(x, y) && passT(tileAt(x, y)) && !G.objs.some(o => o.x === x && o.y === y);
   const near = (x, y) => { for (let rr = 0; rr <= 3; rr++) for (let dy = -rr; dy <= rr; dy++) for (let dx = -rr; dx <= rr; dx++) if (free(x + dx, y + dy)) return [x + dx, y + dy]; return null; };
   const add = (o, x, y) => { const p = near(x, y); if (!p) return null; o.id = G.nextId++; o.x = p[0]; o.y = p[1]; G.objs.push(o); return o; };
@@ -83,7 +96,7 @@ function genMap(cfg) {
     const cands = DIRS.map(([dx, dy]) => [o.x + dx, o.y + dy, Math.cos(Math.atan2(dy, dx) - toC)]).filter(([x, y]) => free(x, y)).sort((a, b) => b[2] - a[2]);
     if (cands.length) add({ t: 'mob', army: mobArmy(level), lvl: level }, cands[0][0], cands[0][1]);
   };
-  for (let k = 0; k < 3; k++) {
+  for (let k = 0; k < NSEC; k++) {
     const pl = G.players[k], fac = pl ? pl.fac : FAC_IDS[k % 3];
     const S = (r, deg) => secTile(k, r, deg);
     const [tx, ty] = S(15.5, 0);
@@ -128,9 +141,9 @@ function genMap(cfg) {
   // герои
   G.players.forEach((p, i) => {
     const town = G.objs.find(o => o.t === 'town' && o.owner === i);
-    const h = makeHero(i, p.fac, town.x, town.y, 0);
-    const u = FACTIONS[p.fac].units;
-    h.army = [{ u: u[0], n: 16 }, { u: u[1], n: 6 }, { u: u[0], n: 8 }, null, null];
+    const h = makeHero(i, p.fac, town.x, town.y, cfg.players[i].hero);
+    const u = FACTIONS[p.fac].units, m = (SPECS[h.spec] || {}).army || 1;
+    h.army = [{ u: u[0], n: Math.round(16 * m) }, { u: u[1], n: Math.round(6 * m) }, { u: u[0], n: Math.round(8 * m) }, null, null];
     G.heroes.push(h);
   });
   G.players.forEach(p => revealAll(p.id));
@@ -142,11 +155,14 @@ function newTown(fac, owner) {
   return { t: 'town', fac, owner, name: FACTIONS[fac].town, built: { dw1: true }, avail, garrison: [null, null, null, null, null], builtDay: 0 };
 }
 
+// idx — номер героя в списке бригады, если игрок выбрал его в лобби; иначе случайный из ещё не занятых
 function makeHero(owner, fac, x, y, idx) {
-  const used = new Set(G.heroes.filter(h => h.fac === fac).map(h => h.name));
-  const pool = FACTIONS[fac].heroes.filter(([n]) => !used.has(n));
-  const [name, em] = pool.length ? pick(pool) : pick(FACTIONS[fac].heroes);
-  return { id: G.nextId++, owner, fac, name, em, x, y, mp: 90, att: 1, def: 1, pow: 1, mana: 15, lvl: 1, xp: 0, arts: [], army: [null, null, null, null, null], dest: null };
+  const all = FACTIONS[fac].heroes, used = new Set(G.heroes.filter(h => h.fac === fac).map(h => h.name));
+  const pool = all.filter(c => !used.has(c.name));
+  const c = all[idx] || (pool.length ? pick(pool) : pick(all));
+  const h = { id: G.nextId++, owner, fac, name: c.name, em: c.em, spec: c.spec, x, y, mp: 90, att: 1, def: 1, pow: 1, mana: 15, lvl: 1, xp: 0, arts: [], army: [null, null, null, null, null], dest: null };
+  h.mp = heroMaxMp(h);
+  return h;
 }
 
 function floodFrom(sx, sy) {
@@ -169,7 +185,7 @@ function revealAll(pid) {
 }
 
 // ---------- путь героя ----------
-const heroMaxMp = h => 90 + h.arts.reduce((s, a) => s + (ARTS[a].mp || 0), 0);
+const heroMaxMp = h => 90 + ((SPECS[h.spec] || {}).mp || 0) + h.arts.reduce((s, a) => s + (ARTS[a].mp || 0), 0);
 function mobZone() {
   const z = new Int32Array(MW * MH).fill(-1);
   for (const o of G.objs) if (o.t === 'mob') for (const [dx, dy] of DIRS) if (inMap(o.x + dx, o.y + dy)) z[(o.y + dy) * MW + o.x + dx] = o.id;
