@@ -1,0 +1,148 @@
+<!doctype html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<title>ДЕЛЁЖ — Москва, 90-е</title>
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<link rel="icon" href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22><text y=%22.9em%22 font-size=%2290%22>💰</text></svg>">
+<style>
+  :root { --gold: #ffd21a; --panel: #1b1420; --line: #4a3a52; }
+  html, body { margin: 0; height: 100%; overflow: hidden; background: #000; color: #f2ecdf; font: 15px/1.35 -apple-system, "Segoe UI", Roboto, sans-serif; user-select: none; -webkit-user-select: none; }
+  .fun { font-family: "Comic Sans MS", "Chalkboard SE", "Marker Felt", cursive; }
+  .st { text-shadow: 2px 2px 0 #000, -2px 2px 0 #000, 2px -2px 0 #000, -2px -2px 0 #000; }
+  #cv { position: fixed; left: 0; top: 0; }
+  #side { position: fixed; right: 0; top: 0; bottom: 0; width: 300px; background: var(--panel); border-left: 3px solid var(--line); display: flex; flex-direction: column; overflow: hidden; }
+  #side > div { padding: 8px 12px; border-bottom: 1px solid var(--line); }
+  #pName { font-size: 22px; font-weight: bold; }
+  #pDay { color: #b9a9c4; font-size: 13px; }
+  #pRes { display: flex; gap: 12px; font-size: 17px; font-weight: bold; }
+  #pRes small { display: block; font-size: 11px; color: #9fd89f; font-weight: normal; }
+  .lst { display: flex; flex-direction: column; gap: 4px; }
+  .li { display: flex; align-items: center; gap: 8px; padding: 4px 8px; border-radius: 6px; background: #2a2030; cursor: pointer; border: 2px solid transparent; }
+  .li:hover { background: #3a2c42; }
+  .li.on { border-color: var(--gold); }
+  .li .em { font-size: 22px; }
+  .li .mpb { margin-left: auto; width: 44px; height: 6px; background: #000; border-radius: 3px; overflow: hidden; }
+  .li .mpb i { display: block; height: 100%; background: #6f6; }
+  h3 { margin: 0 0 6px; font-size: 13px; color: #b9a9c4; text-transform: uppercase; letter-spacing: 1px; }
+  #hCard { flex: 1; overflow: auto; }
+  .stats { display: grid; grid-template-columns: repeat(4, 1fr); gap: 4px; text-align: center; font-weight: bold; margin: 6px 0; }
+  .stats div { background: #2a2030; border-radius: 6px; padding: 3px 0; }
+  .stats small { display: block; font-size: 10px; color: #b9a9c4; font-weight: normal; }
+  .bar { height: 8px; background: #000; border-radius: 4px; overflow: hidden; margin: 3px 0 6px; }
+  .bar i { display: block; height: 100%; }
+  .slots { display: grid; grid-template-columns: repeat(5, 1fr); gap: 4px; }
+  .slot { height: 54px; background: #2a2030; border: 2px solid #3d3046; border-radius: 6px; position: relative; display: flex; align-items: center; justify-content: center; font-size: 26px; cursor: pointer; }
+  .slot b { position: absolute; right: 3px; bottom: 1px; font-size: 13px; text-shadow: 1px 1px 0 #000, -1px -1px 0 #000; }
+  .slot.sel { border-color: var(--gold); background: #4a3a10; }
+  .arts { display: flex; flex-wrap: wrap; gap: 4px; margin-top: 6px; font-size: 22px; }
+  .btns { display: flex; gap: 6px; flex-wrap: wrap; }
+  button { font: inherit; font-weight: bold; color: #1b1420; background: var(--gold); border: 0; border-bottom: 3px solid #a07c00; border-radius: 8px; padding: 7px 12px; cursor: pointer; }
+  button:hover { filter: brightness(1.1); }
+  button:disabled { background: #554a5a; color: #9a8fa0; border-color: #333; cursor: default; filter: none; }
+  button.sec { background: #3a2c42; color: #f2ecdf; border-color: #241a2a; }
+  #endBtn { width: 100%; font-size: 18px; padding: 10px; }
+  #mini { width: 100%; image-rendering: pixelated; cursor: pointer; display: block; }
+  #toast { position: fixed; left: calc(50% - 150px); top: 18px; transform: translateX(-50%); background: rgba(0,0,0,.82); border: 2px solid var(--gold); border-radius: 10px; padding: 8px 16px; font-weight: bold; opacity: 0; transition: opacity .25s; pointer-events: none; z-index: 50; max-width: 60vw; text-align: center; }
+  .ov { position: fixed; inset: 0; background: rgba(10,4,16,.78); display: flex; align-items: center; justify-content: center; z-index: 30; }
+  .ov[hidden] { display: none; }
+  .box { background: var(--panel); border: 3px solid var(--gold); border-radius: 18px 6px 22px 8px; padding: 18px 22px; max-width: 760px; box-shadow: 0 10px 40px #000; }
+  #mTitle { font-size: 26px; color: var(--gold); margin-bottom: 8px; }
+  #mBody { font-size: 17px; margin-bottom: 16px; max-width: 620px; }
+  #curtain { background: #0d0610; flex-direction: column; cursor: pointer; z-index: 40; }
+  #curtain .big { font-size: 84px; transform: rotate(-3deg); }
+  #menu { background: radial-gradient(#3a1630, #0d0610); flex-direction: column; z-index: 45; }
+  #menu h1 { font-size: 110px; margin: 0; color: var(--gold); transform: rotate(-3deg); }
+  #menu .sub { font-size: 24px; color: #0ff; margin-bottom: 20px; }
+  .pset { display: flex; gap: 14px; margin: 10px 0 18px; }
+  .pcard { width: 230px; padding: 12px; border-radius: 12px; background: #241a2a; border: 3px solid; }
+  .pcard input { width: 100%; box-sizing: border-box; font: inherit; font-size: 17px; font-weight: bold; padding: 6px; border-radius: 6px; border: 0; margin: 6px 0; }
+  .facs { display: flex; flex-direction: column; gap: 4px; }
+  .fac { padding: 6px 8px; border-radius: 8px; background: #3a2c42; cursor: pointer; font-size: 13px; border: 2px solid transparent; }
+  .fac b { font-size: 15px; display: block; }
+  .fac.on { border-color: var(--gold); background: #4a3a10; }
+  .pcard.off { opacity: .35; }
+  #town .box, #exch .box { max-width: 1100px; width: 92vw; max-height: 92vh; overflow: auto; }
+  .tgrid { display: grid; grid-template-columns: repeat(5, 1fr); gap: 8px; margin: 8px 0 14px; }
+  .bcard { background: #2a2030; border-radius: 10px; padding: 8px; font-size: 13px; border: 2px solid #3d3046; display: flex; flex-direction: column; gap: 4px; }
+  .bcard b { font-size: 15px; }
+  .bcard.built { border-color: #3c8a3c; background: #1c2e1c; }
+  .rgrid { display: grid; grid-template-columns: repeat(5, 1fr); gap: 8px; margin: 8px 0 14px; }
+  .rcard { background: #2a2030; border-radius: 10px; padding: 8px; text-align: center; font-size: 13px; }
+  .rcard .em { font-size: 40px; }
+  .rcard.lock { opacity: .4; }
+  .row { display: flex; gap: 16px; align-items: flex-start; flex-wrap: wrap; }
+  .army { flex: 1; min-width: 300px; }
+  #bui { position: fixed; left: 0; top: 0; bottom: 0; right: 300px; pointer-events: none; z-index: 20; }
+  #bui[hidden] { display: none; }
+  #bTop { position: absolute; left: 0; right: 0; top: 10px; text-align: center; font-size: 20px; font-weight: bold; }
+  #bInfo { position: absolute; left: 0; right: 0; bottom: 74px; text-align: center; font-size: 16px; min-height: 22px; }
+  #bLog { position: absolute; left: 14px; bottom: 12px; font-size: 13px; color: #d8cce0; line-height: 1.35; }
+  #bBtns { position: absolute; right: 14px; bottom: 14px; display: flex; gap: 8px; pointer-events: auto; }
+  #bSpells { position: absolute; right: 14px; bottom: 70px; display: flex; flex-direction: column; gap: 6px; pointer-events: auto; }
+  #bSpells button { text-align: left; }
+  #bSpells small { display: block; font-weight: normal; font-size: 12px; }
+  #help { font-size: 13px; color: #b9a9c4; }
+</style>
+</head>
+<body>
+<canvas id="cv"></canvas>
+
+<div id="side">
+  <div><div id="pName" class="fun"></div><div id="pDay"></div></div>
+  <div id="pRes"></div>
+  <div><h3>Герои</h3><div id="heroList" class="lst"></div></div>
+  <div id="hCard"></div>
+  <div><h3>Города</h3><div id="townList" class="lst"></div></div>
+  <div class="btns" style="flex-direction:column">
+    <button id="goBtn" class="sec">▶ Продолжить путь (Пробел)</button>
+    <button id="endBtn">⏭ Конец хода (Enter)</button>
+  </div>
+  <div style="padding:0"><canvas id="mini" width="176" height="176"></canvas></div>
+  <div id="help">Клик — путь, второй клик — идти. ПКМ по своему герою — встреча. Стрелки/WASD — карта, H — след. герой, M — музыка. <a href="#" id="menuLink" style="color:#0ff">Меню</a></div>
+</div>
+
+<div id="toast"></div>
+
+<div id="bui" hidden>
+  <div id="bTop" class="st fun"></div>
+  <div id="bInfo" class="st"></div>
+  <div id="bLog" class="st"></div>
+  <div id="bSpells" hidden></div>
+  <div id="bBtns">
+    <button id="bWait">⏳ Ждать (W)</button>
+    <button id="bDef">🛡️ Оборона (D)</button>
+    <button id="bCast">😎 Понты (C)</button>
+    <button id="bAuto" class="sec">🤖 Авто (A)</button>
+  </div>
+</div>
+
+<div id="modal" class="ov" hidden><div class="box"><div id="mTitle" class="fun"></div><div id="mBody"></div><div id="mBtns" class="btns"></div></div></div>
+<div id="town" class="ov" hidden><div class="box" id="townBox"></div></div>
+<div id="exch" class="ov" hidden><div class="box" id="exchBox"></div></div>
+<div id="curtain" class="ov" hidden><div class="big fun st" id="cName"></div><div class="fun st" style="font-size:28px;margin-top:14px" id="cSub"></div><div class="fun" style="font-size:22px;margin-top:40px;color:#aaa">остальные — отвернулись! клик, чтобы начать ход</div></div>
+
+<div id="menu" class="ov">
+  <h1 class="fun st">ДЕЛЁЖ</h1>
+  <div class="sub fun st">Москва, 90-е. Три бригады, один город. Ходим по очереди.</div>
+  <div class="btns" style="margin-bottom:6px"><button id="m2" class="sec">2 игрока</button><button id="m3">3 игрока</button></div>
+  <div class="pset" id="pset"></div>
+  <div class="btns"><button id="newBtn" style="font-size:22px;padding:12px 26px">🎲 Новая игра</button><button id="contBtn" class="sec" style="font-size:22px;padding:12px 26px">💾 Продолжить</button></div>
+  <div style="margin-top:18px;max-width:900px;text-align:center;color:#c9bcd2;font-size:14px">
+    Цель — остаться единственной бригадой: захватить чужие города и разбить чужих героев.<br>
+    Каждый день город приносит бабло, раз в неделю появляются новые бойцы. Ларьки, бензоколонки и стройки дают ресурсы — их охраняет местная шпана.<br>
+    В центре — Кремль: там лежит Ключ от Кремля, но его охраняет полк. Игра сохраняется сама в конце каждого хода.
+  </div>
+  <div id="ver" style="position:absolute;right:14px;bottom:10px;font-size:12px;color:#7d6f87"></div>
+</div>
+
+<script src="js/version.js"></script>
+<script src="js/data.js"></script>
+<script src="js/map.js"></script>
+<script src="js/game.js"></script>
+<script src="js/battle.js"></script>
+<script src="js/sound.js"></script>
+<script src="js/ui.js"></script>
+<script src="js/screens.js"></script>
+</body>
+</html>

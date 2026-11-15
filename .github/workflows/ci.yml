@@ -1,0 +1,23 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - name: Синтаксис
+        run: npm run check
+      - name: Сборка
+        run: npm run build
+      - name: Бот играет партии на собранной версии
+        run: TEST_ROOT=dist npm test

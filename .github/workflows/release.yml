@@ -1,0 +1,74 @@
+name: Release
+
+# Тег vX.Y.Z → тесты → архив в GitHub Releases → выкладка на сервер.
+on:
+  push:
+    tags: ['v*']
+
+permissions:
+  contents: write
+
+concurrency:
+  group: release
+  cancel-in-progress: false
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - run: npm run check
+      - name: Сборка с номером версии
+        run: VERSION="$GITHUB_REF_NAME" npm run build
+      - name: Бот играет партии на собранной версии
+        run: TEST_ROOT=dist npm test
+      - name: Архив
+        run: cd dist && zip -qr "../delyozh-$GITHUB_REF_NAME.zip" .
+      - name: Релиз на GitHub
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh release create "$GITHUB_REF_NAME" "delyozh-$GITHUB_REF_NAME.zip" \
+            --title "ДЕЛЁЖ $GITHUB_REF_NAME" --generate-notes --verify-tag
+      - uses: actions/upload-artifact@v4
+        with:
+          name: dist
+          path: dist
+          retention-days: 14
+
+  deploy:
+    needs: build
+    runs-on: ubuntu-latest
+    environment:
+      name: production
+      url: https://${{ vars.DEPLOY_DOMAIN }}
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          name: dist
+          path: dist
+      - name: Выкладка на сервер
+        env:
+          DEPLOY_SSH_KEY: ${{ secrets.DEPLOY_SSH_KEY }}
+          DEPLOY_KNOWN_HOSTS: ${{ secrets.DEPLOY_KNOWN_HOSTS }}
+          DEPLOY_HOST: ${{ vars.DEPLOY_HOST }}
+          DEPLOY_USER: ${{ vars.DEPLOY_USER }}
+        run: |
+          install -m 700 -d ~/.ssh
+          printf '%s\n' "$DEPLOY_SSH_KEY" > ~/.ssh/deploy && chmod 600 ~/.ssh/deploy
+          printf '%s\n' "$DEPLOY_KNOWN_HOSTS" > ~/.ssh/known_hosts
+          # Ключ на сервере ограничен: умеет только писать в папку сайта (rrsync).
+          rsync -rtz --delete -e "ssh -i ~/.ssh/deploy -o IdentitiesOnly=yes" dist/ "$DEPLOY_USER@$DEPLOY_HOST:/"
+      - name: Проверка, что на сервере нужная версия
+        env:
+          DEPLOY_HOST: ${{ vars.DEPLOY_HOST }}
+          DEPLOY_DOMAIN: ${{ vars.DEPLOY_DOMAIN }}
+        run: |
+          got=$(curl -fsSL --max-time 20 --resolve "$DEPLOY_DOMAIN:80:$DEPLOY_HOST" --resolve "$DEPLOY_DOMAIN:443:$DEPLOY_HOST" "http://$DEPLOY_DOMAIN/version.json")
+          echo "$got"
+          echo "$got" | grep -q "\"$GITHUB_REF_NAME\""
