@@ -129,11 +129,12 @@ function netRoom(d) {
   NET.room = d; NET.v = Math.max(NET.v, d.v);
   if (d.state === 'lobby') { if (!$('menu').hidden) renderMenu(); return; }
   if (d.snap && d.sv > NET.sv) { NET.sv = d.sv; if (!(NET.auth && G)) { if (B && B.mirror) netMirror(null); netApply(d.snap); } } // свой же снимок обратно не применяем
-  if (d.bv > NET.bv) { NET.bv = d.bv; if (G && d.battle !== undefined && !(B && !B.mirror)) netMirror(d.battle); }
+  // зеркало боя — только у тех, кто смотрит: считающему партию возвращается эхо его же боя, и показывать его нельзя
+  if (d.bv > NET.bv) { NET.bv = d.bv; if (G && !NET.auth && d.battle !== undefined && !(B && !B.mirror)) netMirror(d.battle); }
   if (d.cmds) for (const c of d.cmds) if (B && !B.mirror && B.cmdWait && B.need >= 0 && G.players[B.sides[B.need].owner].seat === c.seat) { const r = B.cmdWait; B.cmdWait = null; r(c.cmd); }
   if (!G) return;
   netMine();
-  if (d.auth && !NET.auth && !G.over) { NET.auth = true; netTakeTurn(); }
+  if (d.auth && !NET.auth && !G.over) { NET.auth = true; if (B && B.mirror) netMirror(null); netTakeTurn(); }
   // одновременные ходы: хозяин сводит день, когда его сдали все
   if (d.host && G.sim && NET.simSent && NET.simDay === G.day && d.subDay === G.day && !NET.merging && d.subw > 0 && d.subn >= d.subw) simCollect();
   else if (!d.auth && NET.auth && NET.sv >= d.sv && !netRemote(G.cur) && d.meta && d.sv > 0 && !NET.timer) { /* сервер ещё не получил наш последний снимок — ждём */ }
