@@ -25,7 +25,7 @@ function prerender() {
     if (soft) continue;
     if (t === T.GROUND) { for (let i = 0; i < 6; i++) { g.fillStyle = `rgba(0,0,0,${0.05 + hash2(x * 7 + i, y, 9) * 0.1})`; g.fillRect(X + hash2(x, y * 3 + i, 1) * TS, Y + hash2(x + i, y, 2) * TS, 3, 3); } }
     if (t === T.ROAD) { g.fillStyle = 'rgba(255,255,255,.05)'; g.fillRect(X, Y, TS, 2); if (h < 0.15) { g.fillStyle = '#3a3a40'; g.beginPath(); g.ellipse(X + 24, Y + 28, 9, 5, 0, 0, 7); g.fill(); } }
-    if (t === T.PARK || t === T.FOREST) { g.font = '30px serif'; if (h < 0.7) g.fillText(t === T.FOREST ? '🌲' : h < 0.35 ? '🌳' : '🌲', X + 24 + (h - 0.35) * 14, Y + 24); }
+    if (t === T.PARK || t === T.FOREST) { if (h < 0.7) { const s = SPRITES[t === T.FOREST || h >= 0.35 ? 'tree1' : 'tree2']; g.imageSmoothingEnabled = false; if (s) g.drawImage(s.frames[0], Math.round(X + 8 + (h - 0.35) * 14), Y + 6, 32, 32); else { g.font = '30px serif'; g.fillText('🌲', X + 24, Y + 24); } } }
     if (t === T.WATER) { g.strokeStyle = 'rgba(255,255,255,.25)'; g.lineWidth = 2; g.beginPath(); g.moveTo(X + 8, Y + 18); g.quadraticCurveTo(X + 16, Y + 12, X + 24, Y + 18); g.moveTo(X + 22, Y + 34); g.quadraticCurveTo(X + 30, Y + 28, X + 38, Y + 34); g.stroke(); }
     if (t === T.BLOCK) {
       g.fillStyle = '#6e6e68'; g.fillRect(X + 3, Y + 3, TS - 6, 6);
@@ -115,17 +115,18 @@ function drawMap() {
     const X = o.x * TS + TS / 2, Y = o.y * TS + TS / 2;
     if (o.t === 'town') {
       c.fillStyle = o.owner >= 0 ? pcol(o.owner) : '#ddd'; c.fillRect(X - 26, Y - 30, 52, 8);
-      c.font = '44px serif'; c.fillText('🏢', X - 6, Y + 2); c.font = '24px serif'; c.fillText(FACTIONS[o.fac].em, X + 16, Y + 12);
+      if (!drawSprite(c, 't_' + o.fac, X, Y - 2, 48, 0)) { c.font = '44px serif'; c.fillText('🏢', X - 6, Y + 2); c.font = '24px serif'; c.fillText(FACTIONS[o.fac].em, X + 16, Y + 12); }
       if (o.dist) mapTag(c, o.name, X, Y + 30, true);
       continue;
     }
     if (o.t === 'mine' || o.t === 'town') { c.fillStyle = o.owner >= 0 ? pcol(o.owner) : '#eee'; c.fillRect(X + 8, Y - 22, 12, 9); c.fillStyle = '#222'; c.fillRect(X + 7, Y - 22, 2, 22); }
     let em = '?';
-    if (o.nm && seen(o.x, o.y)) mapTag(c, o.lb || o.nm.split(':')[0], X, Y + 25);
+    if (o.nm && seen(o.x, o.y)) mapTag(c, o.lb || o.nm.split(':')[0], X, Y + 31);
     if (o.t === 'mine') em = mineOf(o).em; else if (o.t === 'pile') em = RES_ICON[o.res]; else if (o.t === 'chest') em = o.em || '📦';
     else if (o.t === 'art') { em = ARTS[o.art].em; c.fillStyle = `rgba(255,220,60,${0.25 + 0.15 * Math.sin(now / 300)})`; c.beginPath(); c.arc(X, Y, 20, 0, 7); c.fill(); }
     else if (o.t === 'bonus') em = bonusOf(o).em;
     else if (o.t === 'mob') { em = UNITS[o.army.find(Boolean).u].em; c.fillStyle = 'rgba(200,30,30,.35)'; c.beginPath(); c.arc(X, Y, 21, 0, 7); c.fill(); if (drawSprite(c, o.army.find(Boolean).u, X, Y - 1, o.boss ? 48 : 40, o.id)) continue; }
+    if (drawSprite(c, sprOf(o), X, Y, o.t === 'pile' || o.t === 'art' || o.t === 'chest' || (o.t === 'bonus' && !o.sp) ? 32 : 48, 0)) continue;
     c.font = (o.t === 'mob' && o.boss ? 46 : 32) + 'px serif'; c.fillText(em, X, Y + 2);
   }
   // путь
@@ -145,7 +146,7 @@ function drawMap() {
     const X = o.x * TS + TS / 2, Y = o.y * TS + TS / 2, inTown = !!townAt(o.x, o.y), dx = inTown ? 14 : 0, dy = inTown ? 12 : 0;
     if (o.id === UI.sel) { c.strokeStyle = '#ffd21a'; c.lineWidth = 3; c.beginPath(); c.arc(X + dx, Y + dy, 21 + Math.sin(now / 180) * 2, 0, 7); c.stroke(); }
     c.fillStyle = pcol(o.owner); c.beginPath(); c.arc(X + dx, Y + dy, 17, 0, 7); c.fill(); c.strokeStyle = '#000'; c.lineWidth = 2; c.stroke();
-    c.font = '26px serif'; c.fillText(o.em, X + dx, Y + dy + 1);
+    if (!drawSprite(c, 'h_' + o.name, X + dx, Y + dy - 1, 32, o.id)) { c.font = '26px serif'; c.fillText(o.em, X + dx, Y + dy + 1); }
   }
   // туман
   c.fillStyle = '#000';
@@ -184,7 +185,7 @@ function drawBattle() {
     }
   }
   c.font = Math.round(cs * 0.6) + 'px serif';
-  for (const k of B.obst) { const [x, y] = k.split(',').map(Number); c.fillText(OBST[(x * 3 + y) % OBST.length], ox + x * cs + cs / 2, oy + y * cs + cs / 2); }
+  for (const k of B.obst) { const [x, y] = k.split(',').map(Number); const q = (x * 3 + y) % OBST.length; if (!drawSprite(c, OBST_SPR[q], ox + x * cs + cs / 2, oy + y * cs + cs / 2, Math.floor(cs * 0.8 / 16) * 16 || 16, 0)) c.fillText(OBST[q], ox + x * cs + cs / 2, oy + y * cs + cs / 2); }
   for (const st of B.stacks) {
     if (!alive(st)) continue;
     st.px += (st.x - st.px) * 0.35; st.py += (st.y - st.py) * 0.35;
@@ -268,24 +269,24 @@ const anyOverlay = () => ['modal', 'town', 'exch', 'curtain', 'menu'].some(id =>
 function refresh() {
   if (!G) return;
   const watch = BOTTING || netWatching(), p = watch ? viewP() : curP(), inc = dailyIncome(p.id);
-  $('pName').textContent = `${FACTIONS[p.fac].em} ${p.name}`; $('pName').style.color = p.col;
+  $('pName').innerHTML = `${ico('t_' + p.fac, 28, FACTIONS[p.fac].em)} ${esc(p.name)}`; $('pName').style.color = p.col;
   $('pDay').innerHTML = watch ? `<b style="color:${curP().col}">${isBot(G.cur) ? '🤖' : '🌐'} Ходит: ${curP().name}…</b>` : `Неделя ${weekNo()}, день ${dayOfWeek()} · всего дней: ${G.day}`;
   $('endBtn').disabled = watch;
   netBox(); netDirty();
-  $('pRes').innerHTML = RES.map(r => `<div>${RES_ICON[r]} ${p.res[r]}<small>+${inc[r]}/день</small></div>`).join('');
-  $('heroList').innerHTML = myHeroes(p.id).map(h => `<div class="li ${h.id === UI.sel ? 'on' : ''}" data-h="${h.id}"><span class="em">${h.em}</span><span>${h.name}<br><small>ур. ${h.lvl}</small></span><span class="mpb"><i style="width:${Math.round(100 * h.mp / heroMaxMp(h))}%"></i></span></div>`).join('') || '<small>Героев нет — наймите в городе</small>';
-  $('townList').innerHTML = myTowns(p.id).map(t => `<div class="li" data-t="${t.id}"><span class="em">🏢</span><span>${t.name}<br><small>${t.builtDay === G.day ? 'сегодня уже строили' : 'можно строить'}</small></span></div>`).join('') || '<small>Городов нет! Захватите любой за 7 дней</small>';
+  $('pRes').innerHTML = RES.map(r => `<div>${resIco(r, 22)} ${p.res[r]}<small>+${inc[r]}/день</small></div>`).join('');
+  $('heroList').innerHTML = myHeroes(p.id).map(h => `<div class="li ${h.id === UI.sel ? 'on' : ''}" data-h="${h.id}"><span class="em">${heroIco(h, 32)}</span><span>${h.name}<br><small>ур. ${h.lvl}</small></span><span class="mpb"><i style="width:${Math.round(100 * h.mp / heroMaxMp(h))}%"></i></span></div>`).join('') || '<small>Героев нет — наймите в городе</small>';
+  $('townList').innerHTML = myTowns(p.id).map(t => `<div class="li" data-t="${t.id}"><span class="em">${ico('t_' + t.fac, 32, '🏢')}</span><span>${t.name}<br><small>${t.builtDay === G.day ? 'сегодня уже строили' : 'можно строить'}</small></span></div>`).join('') || '<small>Городов нет! Захватите любой за 7 дней</small>';
   document.querySelectorAll('[data-h]').forEach(el => el.onclick = () => { if (!locked()) selectHero(heroById(+el.dataset.h)); });
   document.querySelectorAll('[data-t]').forEach(el => el.onclick = () => { if (!locked()) { const t = G.objs.find(o => o.id === +el.dataset.t); openTown(t, heroAt(t.x, t.y)); } });
   const h = selHero();
   if (h) {
     const s = heroStats(h), nx = xpFor(h.lvl + 1), px = xpFor(h.lvl);
-    $('hCard').innerHTML = `<div style="display:flex;gap:10px;align-items:center"><span style="font-size:42px">${h.em}</span><div><b style="font-size:17px">${h.name}</b><br><small>${FACTIONS[h.fac].name} · уровень ${h.lvl}${SPECS[h.spec] ? `<br>★ ${SPECS[h.spec].name}: ${SPECS[h.spec].desc}` : ''}</small></div></div>
+    $('hCard').innerHTML = `<div style="display:flex;gap:10px;align-items:center"><span style="font-size:42px">${heroIco(h, 56)}</span><div><b style="font-size:17px">${h.name}</b><br><small>${FACTIONS[h.fac].name} · уровень ${h.lvl}${SPECS[h.spec] ? `<br>★ ${SPECS[h.spec].name}: ${SPECS[h.spec].desc}` : ''}</small></div></div>
       <div class="stats"><div>⚔️${s.att}<small>атака</small></div><div>🛡️${s.def}<small>защита</small></div><div>😎${s.pow}<small>понты</small></div><div>💧${h.mana}<small>из ${maxMana(h)}</small></div></div>
       <small>Ход: ${Math.floor(h.mp)} / ${heroMaxMp(h)}</small><div class="bar"><i style="width:${100 * h.mp / heroMaxMp(h)}%;background:#6f6"></i></div>
       <small>Опыт: ${h.xp} / ${nx}</small><div class="bar"><i style="width:${100 * (h.xp - px) / (nx - px)}%;background:#fc3"></i></div>
       <div class="slots">${h.army.map(a => `<div class="slot" title="${a ? UNITS[a.u].name : ''}">${a ? unitIcon(a.u, 40) + `<b>${a.n}</b>` : ''}</div>`).join('')}</div>
-      <div class="arts">${h.arts.map(a => `<span title="${ARTS[a].name}: ${ARTS[a].desc}">${ARTS[a].em}</span>`).join('') || '<small>Артефактов нет</small>'}</div>
+      <div class="arts">${h.arts.map(a => `<span title="${ARTS[a].name}: ${ARTS[a].desc}">${ico('a_' + a, 32, ARTS[a].em)}</span>`).join('') || '<small>Артефактов нет</small>'}</div>
       ${G.heroes.filter(o => o.owner === h.owner && o !== h && Math.max(Math.abs(o.x - h.x), Math.abs(o.y - h.y)) <= 1).map(o => `<button class="sec" data-ex="${o.id}" style="margin-top:6px">🤝 Обмен с ${o.name}</button>`).join('')}`;
     document.querySelectorAll('[data-ex]').forEach(el => el.onclick = () => { if (!locked()) openExchange(h, heroById(+el.dataset.ex)); });
   } else $('hCard').innerHTML = '<small>Выберите героя</small>';

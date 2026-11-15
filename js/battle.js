@@ -3,7 +3,7 @@
 
 const BW = 11, BH = 8;
 let B = null;
-const OBST = ['🗑️', '🚗', '🛢️', '📦', '🚧'];
+const OBST = ['🗑️', '🚗', '🛢️', '📦', '🚧'], OBST_SPR = ['o_bin', 'champ', 'o_barrel', 'o_crate', 'o_barrier'];
 
 function runBattle(cfg) {
   return new Promise(resolve => {
@@ -79,7 +79,7 @@ function applyDmg(t, dmg) {
   return before - t.n;
 }
 function blog(t) { B.log.unshift(t); B.log.length = Math.min(B.log.length, 6); }
-const sName = s => `${UNITS[s.u].em} ${UNITS[s.u].name}`;
+const sName = s => UNITS[s.u].name;
 function floatText(s, text, col) { B.fx.push({ x: s.x, y: s.y, text, col, t: 0 }); }
 
 async function strike(a, t, ranged) {
@@ -230,7 +230,7 @@ function hoverInfo(cx, cy) {
   const s = B.active, t = stackAt(cx, cy);
   if (!t) return '';
   const U = UNITS[t.u];
-  let txt = `${U.em} ${U.name} ×${t.n} · ⚔️${U.att + B.sides[t.side].st.att} 🛡️${effDef(t)} · ❤️${t.hp}/${U.hp} · 💨${sSpd(t)}${U.shots ? ` · 🎯${t.shots}` : ''}${U.note ? ' · ' + U.note : ''}`;
+  let txt = `${U.name} ×${t.n} · ⚔️${U.att + B.sides[t.side].st.att} 🛡️${effDef(t)} · ❤️${t.hp}/${U.hp} · 💨${sSpd(t)}${U.shots ? ` · 🎯${t.shots}` : ''}${U.note ? ' · ' + U.note : ''}`;
   if (t.side !== s.side && humanSide(s)) {
     const ranged = canShoot(s), [lo, hi] = dmgRange(s, t, ranged), H = U.hp;
     const kill = d => Math.min(t.n, d >= pool(t) ? t.n : t.n - Math.ceil((pool(t) - d) / H));

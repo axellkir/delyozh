@@ -31,7 +31,7 @@ function heroStats(h) {
 const maxMana = h => 10 + 5 * heroStats(h).pow;
 const armyCount = a => a.reduce((s, x) => s + (x ? x.n : 0), 0);
 const armyValue = a => a.reduce((s, x) => s + (x ? x.n * UNITS[x.u].hp * (1 + UNITS[x.u].att / 10) : 0), 0);
-function costText(c) { return RES.filter(r => c[r]).map(r => `${c[r]}${RES_ICON[r]}`).join(' ') || 'бесплатно'; }
+function costText(c) { return RES.filter(r => c[r]).map(r => `${c[r]}${resIco(r, 16)}`).join(' ') || 'бесплатно'; } // HTML: со значками ресурсов
 function canPay(pid, c, mult = 1) { const r = G.players[pid].res; return RES.every(k => (r[k] || 0) >= (c[k] || 0) * mult); }
 function pay(pid, c, mult = 1) { const r = G.players[pid].res; RES.forEach(k => { r[k] -= (c[k] || 0) * mult; }); }
 function log(t) { G.log.unshift(`д.${G.day}: ${t}`); G.log.length = Math.min(G.log.length, 40); }
@@ -222,7 +222,7 @@ async function enterTile(h, last, action) {
   return false;
 }
 function removeObj(o) { G.objs = G.objs.filter(x => x !== o); reindex(); }
-const armyText = a => a.filter(Boolean).map(s => `${UNITS[s.u].em} ${UNITS[s.u].name} ×${s.n}`).join(', ');
+const armyText = a => a.filter(Boolean).map(s => `${UNITS[s.u].name} ×${s.n}`).join(', ');
 
 async function doAction(h, act) {
   if (act.kind === 'mob') { const mob = G.objs.find(o => o.id === act.id); if (mob) await fightMob(h, mob); }

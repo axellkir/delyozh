@@ -15,7 +15,7 @@ function ask(title, html, buttons, opt) {
 function curtain(p) {
   return new Promise(res => {
     $('cName').textContent = `Ход: ${p.name}`; $('cName').style.color = p.col;
-    $('cSub').textContent = `${FACTIONS[p.fac].em} ${FACTIONS[p.fac].name} · неделя ${weekNo()}, день ${dayOfWeek()}`;
+    $('cSub').innerHTML = `${ico('t_' + p.fac, 32, FACTIONS[p.fac].em)} ${FACTIONS[p.fac].name} · неделя ${weekNo()}, день ${dayOfWeek()}`;
     $('curtain').hidden = false; sfx('turn'); $('toast').style.opacity = 0;
     $('curtain').onclick = () => { audioInit(); $('curtain').hidden = true; res(); };
   });
@@ -55,14 +55,14 @@ function renderTown(t, hero) {
     return `<div class="rcard ${ok ? '' : 'lock'}"><div class="em">${unitIcon(u, 64)}</div><b>${U.name}</b><br>⚔️${U.att} 🛡️${U.def} ❤️${U.hp} 💨${U.spd}<br>урон ${U.dmg[0]}–${U.dmg[1]}${U.shots ? ' · стрелок' : ''}${U.fly ? ' · прыгает' : ''}<br><i>${U.note || '&nbsp;'}</i><br>
       цена ${costText(U.cost)}<br>доступно: <b>${ok ? n : '—'}</b><br>${ok ? `<div class="btns" style="justify-content:center;margin-top:4px"><button data-r="${u}" data-n="1" ${mx ? '' : 'disabled'}>+1</button><button data-r="${u}" data-n="${mx}" ${mx ? '' : 'disabled'}>Все (${mx})</button></div>` : ''}</div>`;
   };
-  const market = t.built.market ? `<h3>Барахолка</h3><div class="btns">${['fuel', 'brick'].map(r => `<button data-buy="${r}">Купить ${RES_ICON[r]} за ${TRADE_BUY}💵</button><button class="sec" data-sell="${r}">Продать ${RES_ICON[r]} за ${TRADE_SELL}💵</button>`).join('')}</div>` : '';
+  const market = t.built.market ? `<h3>Барахолка</h3><div class="btns">${['fuel', 'brick'].map(r => `<button data-buy="${r}">Купить ${resIco(r)} за ${TRADE_BUY}${resIco('gold', 16)}</button><button class="sec" data-sell="${r}">Продать ${resIco(r)} за ${TRADE_SELL}${resIco('gold', 16)}</button>`).join('')}</div>` : '';
   $('townBox').innerHTML = `
-    <div style="display:flex;align-items:center;gap:14px"><span style="font-size:48px">${F.em}</span><div><div class="fun" style="font-size:30px;color:${p.col}">${t.name}</div><small>${F.name} · ${F.desc}</small></div>
-      <div style="margin-left:auto;font-size:18px;font-weight:bold">${RES.map(r => `${RES_ICON[r]} ${p.res[r]}`).join(' &nbsp; ')}</div><button id="tClose">Выйти (Esc)</button></div>
+    <div style="display:flex;align-items:center;gap:14px">${ico('t_' + t.fac, 64, F.em)}<div><div class="fun" style="font-size:30px;color:${p.col}">${t.name}</div><small>${F.name} · ${F.desc}</small></div>
+      <div style="margin-left:auto;font-size:18px;font-weight:bold">${RES.map(r => `${resIco(r)} ${p.res[r]}`).join(' &nbsp; ')}</div><button id="tClose">Выйти (Esc)</button></div>
     <h3 style="margin-top:12px">Стройка — одно здание в день</h3><div class="tgrid">${BUILDINGS.map(bcard).join('')}</div>
     <h3>Найм — новые бойцы приходят по понедельникам</h3><div class="rgrid">${units.map(rcard).join('')}</div>
-    <div class="row">${armyRow(t.garrison, 'g', 'Гарнизон (охраняет город)')}${hero ? armyRow(hero.army, 'h', `${hero.em} ${hero.name}`) : ''}</div>
-    <div class="btns" style="margin:10px 0">${hero ? '<button class="sec" id="allH">Всех к герою</button><button class="sec" id="allG">Всех в гарнизон</button>' : `<button id="hire">Нанять героя за ${HERO_COST}💵</button>`}<small style="align-self:center">Клик по отряду, потом по другому месту — переставить или объединить.</small></div>
+    <div class="row">${armyRow(t.garrison, 'g', 'Гарнизон (охраняет город)')}${hero ? armyRow(hero.army, 'h', `${heroIco(hero, 24)} ${hero.name}`) : ''}</div>
+    <div class="btns" style="margin:10px 0">${hero ? '<button class="sec" id="allH">Всех к герою</button><button class="sec" id="allG">Всех в гарнизон</button>' : `<button id="hire">Нанять героя за ${HERO_COST}${resIco('gold', 16)}</button>`}<small style="align-self:center">Клик по отряду, потом по другому месту — переставить или объединить.</small></div>
     ${market}`;
   const R = () => renderTown(t, hero), box = $('townBox');
   $('tClose').onclick = closeTown;
@@ -87,7 +87,7 @@ function openExchange(a, b) {
   return new Promise(res => {
     SLOT = null; $('exch').hidden = false;
     const R = () => {
-      $('exchBox').innerHTML = `<div class="fun" style="font-size:28px;color:var(--gold)">🤝 Встреча</div><div class="row">${armyRow(a.army, 'a', `${a.em} ${a.name}`)}${armyRow(b.army, 'b', `${b.em} ${b.name}`)}</div>
+      $('exchBox').innerHTML = `<div class="fun" style="font-size:28px;color:var(--gold)">🤝 Встреча</div><div class="row">${armyRow(a.army, 'a', `${heroIco(a, 24)} ${a.name}`)}${armyRow(b.army, 'b', `${heroIco(b, 24)} ${b.name}`)}</div>
         <div class="btns" style="margin-top:12px"><button id="xClose">Готово</button></div>`;
       bindSlots($('exchBox'), { a: { arr: a.army, hero: true }, b: { arr: b.army, hero: true } }, R);
       $('xClose').onclick = () => { $('exch').hidden = true; refresh(); res(); };
@@ -100,9 +100,9 @@ function openExchange(a, b) {
 function battleUI(on) { $('bui').hidden = !on; $('bSpells').hidden = true; if (on) refreshBattleUI(); }
 function refreshBattleUI() {
   if (!B || B.quick) return;
-  const nm = sd => sd.hero ? `${sd.hero.em} ${sd.hero.name}` : sd.owner >= 0 ? `гарнизон (${G.players[sd.owner].name})` : 'местные';
+  const nm = sd => sd.hero ? `${heroIco(sd.hero, 24)} ${sd.hero.name}` : sd.owner >= 0 ? `гарнизон (${G.players[sd.owner].name})` : 'местные';
   const s = B.active, sd = s && B.sides[s.side];
-  $('bTop').innerHTML = `${B.title} · раунд ${B.round}<br><span style="font-size:16px"><span style="color:${B.sides[0].owner >= 0 ? PCOL[B.sides[0].owner] : '#aaa'}">${nm(B.sides[0])}</span> ⚔️ <span style="color:${B.sides[1].owner >= 0 ? PCOL[B.sides[1].owner] : '#aaa'}">${nm(B.sides[1])}</span>${s ? ` · ходят: ${UNITS[s.u].em} ${UNITS[s.u].name}` : ''}${B.spell ? ' · выберите цель для «' + B.spell.name + '»' : ''}</span>`;
+  $('bTop').innerHTML = `${B.title} · раунд ${B.round}<br><span style="font-size:16px"><span style="color:${B.sides[0].owner >= 0 ? pcol(B.sides[0].owner) : '#aaa'}">${nm(B.sides[0])}</span> ⚔️ <span style="color:${B.sides[1].owner >= 0 ? pcol(B.sides[1].owner) : '#aaa'}">${nm(B.sides[1])}</span>${s ? ` · ходят: ${UNITS[s.u].em} ${UNITS[s.u].name}` : ''}${B.spell ? ' · выберите цель для «' + B.spell.name + '»' : ''}</span>`;
   $('bLog').innerHTML = B.log.join('<br>');
   const human = s && !sd.auto;
   ['bWait', 'bDef', 'bAuto'].forEach(id => { $(id).disabled = !human; });
@@ -152,9 +152,9 @@ function renderMenu() {
         : `<button data-seat="${i}" data-claim="1">Сесть сюда</button>`;
     return `<div class="pcard" style="border-color:${PCOL[i]}">${head}
       <input data-pn="${i}" value="${esc(p.name)}" maxlength="16" placeholder="Название бригады" ${edit ? '' : 'disabled'}>${who}
-      <div class="seg wide ${edit ? '' : 'ro'}">${FAC_IDS.map(f => `<span class="${p.fac === f ? 'on' : ''}" data-seat="${i}" data-fac="${f}" title="${FACTIONS[f].desc}">${FACTIONS[f].em} ${FACTIONS[f].name[0] + FACTIONS[f].name.slice(1).toLowerCase()}</span>`).join('')}</div>
+      <div class="seg wide ${edit ? '' : 'ro'}">${FAC_IDS.map(f => `<span class="${p.fac === f ? 'on' : ''}" data-seat="${i}" data-fac="${f}" title="${FACTIONS[f].desc}">${ico('t_' + f, 18, FACTIONS[f].em)} ${FACTIONS[f].name[0] + FACTIONS[f].name.slice(1).toLowerCase()}</span>`).join('')}</div>
       <small>${F.desc}</small>
-      <div class="seg wide heroes ${edit ? '' : 'ro'}"><span class="${hc ? '' : 'on'}" data-seat="${i}" data-hero="-1" title="Случайный герой">🎲</span>${F.heroes.map((c, k) => `<span class="${p.hero === k ? 'on' : ''}" data-seat="${i}" data-hero="${k}" title="${c.name} — ${SPECS[c.spec].name}: ${SPECS[c.spec].desc}">${c.em}</span>`).join('')}</div>
+      <div class="seg wide heroes ${edit ? '' : 'ro'}"><span class="${hc ? '' : 'on'}" data-seat="${i}" data-hero="-1" title="Случайный герой">🎲</span>${F.heroes.map((c, k) => `<span class="${p.hero === k ? 'on' : ''}" data-seat="${i}" data-hero="${k}" title="${c.name} — ${SPECS[c.spec].name}: ${SPECS[c.spec].desc}">${ico('h_' + c.name, 28, c.em)}</span>`).join('')}</div>
       <small>${hc ? `<b>${hc.name}</b> · ★ ${SPECS[hc.spec].name}: ${SPECS[hc.spec].desc}` : 'Герой: какой придёт'}</small>
       ${p.kind === 'bot' ? `<div class="seg wide ${host ? '' : 'ro'}">${DIFF.map((d, k) => `<span class="${p.diff === k ? 'on' : ''}" data-seat="${i}" data-diff="${k}" title="${d.desc}">${d.em} ${d.name}</span>`).join('')}</div><small>${DIFF[p.diff].desc}</small>` : ''}</div>`;
   };
