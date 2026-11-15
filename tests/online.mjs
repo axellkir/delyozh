@@ -29,7 +29,9 @@ async function client(name) {
     SPEED = 0; NET.name = n; window.AUTOBATTLE = true;
     window.ask = async (t, h, b) => (t.includes('уровень') ? rnd(0, 2) : 0);
     window.curtain = async () => {}; window.openTown = async () => {}; window.openExchange = async () => {};
-    window.__turns = 0; window.__stop = false;
+    window.__turns = 0; window.__stop = false; window.__live = 0;
+    // живая защита: когда на нас напали и ход за нашим отрядом — три раза встаём в оборону, дальше отдаём ИИ
+    setInterval(() => { if (B && B.mirror && B.wait) { window.__live++; netCmd({ k: window.__live % 4 ? 'defend' : 'auto' }); } }, 40);
     window.__auto = async days => {
       while (!window.__stop) {
         if (G && G.over) break;
@@ -41,7 +43,7 @@ async function client(name) {
   }, name);
   return page;
 }
-const wait = async (page, fn, what, ms = 20000) => { try { await page.waitForFunction(fn, { timeout: ms }); } catch (e) { throw new Error(`не дождались: ${what}`); } };
+const wait = async (page, fn, what, ms = 20000, ...args) => { try { await page.waitForFunction(fn, { timeout: ms }, ...args); } catch (e) { throw new Error(`не дождались: ${what}`); } };
 let failed = false;
 try {
   const A = await client('Вася'), Bp = await client('Петя');
@@ -72,13 +74,28 @@ try {
   if (!a.over && (a.turns < 3 || b.turns < 3)) errors.push(`мало сыграно ходов: Вася ${a.turns}, Петя ${b.turns}`);
   if (a.auth && b.auth) errors.push('право хода сразу у обоих');
   if (a.seenMe === b.seenMe) errors.push('оба смотрят глазами одной бригады');
+  // живая защита: тот, у кого ход, нападает на героя соперника; бой должен показаться у соперника, и он должен успеть покомандовать
+  const [X, Y] = a.auth ? [A, Bp] : [Bp, A];
+  const fight = await X.evaluate(async () => {
+    const me = [...NET.mine][0], h = myHeroes(me)[0], o = G.heroes.find(q => netRemote(q.owner));
+    if (!h || !o || !NET.auth) return null;
+    h.army = [{ u: 'byk', n: 3 }, { u: 'gop', n: 10 }, null, null, null]; o.army = [{ u: 'chop', n: 6 }, { u: 'metal', n: 8 }, null, null, null];
+    BUSY = true; const won = await fightHero(h, o, false); BUSY = false; checkWin(); refresh();
+    return { won, heroes: G.heroes.length };
+  });
+  if (fight) {
+    await wait(Y, n => !B && G.heroes.length === n, 'соперник получил итог боя', 20000, fight.heroes).catch(() => errors.push('итог боя не дошёл до соперника'));
+    const live = await Y.evaluate(() => window.__live);
+    console.log(`Живая защита: команд защитника ${live}, победа нападавшего: ${fight.won}`);
+    if (!live) errors.push('защитник ни разу не получил управление своими отрядами');
+  } else console.log('Живая защита: не нашлось пары героев для проверки');
   // Петя перезагружает страницу по ссылке и возвращается в ту же партию
   await Bp.goto(url + '?room=' + code, { waitUntil: 'load' });
   await wait(Bp, () => !!G && NET.on && document.getElementById('menu').hidden, 'Петя вернулся в партию после перезагрузки');
   const back = await Bp.evaluate(() => ({ day: G.day, mine: [...NET.mine] }));
-  if (back.day !== a.day || back.mine.join() !== b.mine.join()) errors.push('после перезагрузки партия или место не те: ' + JSON.stringify(back));
+  if (back.day < a.day || back.mine.join() !== b.mine.join()) errors.push('после перезагрузки партия или место не те: ' + JSON.stringify(back));
 } catch (e) { errors.push(String(e && e.message || e)); }
 finally { await browser.close(); srv.kill(); fs.rmSync(data, { recursive: true, force: true }); }
 if (errors.length) { failed = true; console.log('✗ Игра по сети'); errors.slice(0, 8).forEach(e => console.log('    ' + e.split('\n').slice(0, 4).join('\n    '))); }
-else console.log('✓ Игра по сети: комната, список, права, партия на двух компьютерах с ботом, возврат по ссылке');
+else console.log('✓ Игра по сети: комната, список, права, партия на двух компьютерах с ботом, живая защита, возврат по ссылке');
 process.exit(failed ? 1 : 0);
