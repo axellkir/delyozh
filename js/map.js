@@ -6,9 +6,10 @@ let NSEC = 3, MR = 20, MW = 44, MH = 44, MCX = 22, MCY = 22;
 const KREMLIN_R = 4.4;
 // радиус «как на карте для троих» → настоящий радиус на этой карте
 const sr = r => (r <= KREMLIN_R ? r : KREMLIN_R + (r - KREMLIN_R) * (MR - KREMLIN_R) / (20 - KREMLIN_R));
-function setMap(nsec) {
-  NSEC = clamp(nsec || 3, 3, 6); MR = [20, 23, 26, 29][NSEC - 3];
-  MW = MH = 2 * (MR + 2); MCX = MCY = MW / 2;
+// size — сторона карты «Москва 90-х» в клетках; без неё строится симметричная схема на nsec секторов
+function setMap(nsec, size) {
+  NSEC = clamp(nsec || 3, 3, 6); MR = size ? size / 2 - 4 : [20, 23, 26, 29][NSEC - 3];
+  MW = MH = size || 2 * (MR + 2); MCX = MCY = MW / 2;
   OIDX = new Int32Array(MW * MH).fill(-1);
 }
 const T = { GROUND: 0, ROAD: 1, PARK: 2, WATER: 3, BLOCK: 4, WALL: 5, FOREST: 6 };
@@ -81,9 +82,9 @@ function mobArmy(level) {
 }
 
 function genMap(cfg) {
-  const seed = rnd(1, 99999);
-  setMap(Math.max(3, cfg.players.length));
-  G = { ver: 2, nsec: NSEC, day: 1, cur: 0, view: 0, nextId: 1, tiles: genTerrain(seed), objs: [], heroes: [], players: [], log: [], week: null, over: false };
+  const seed = rnd(1, 99999), kind = cfg.map === 'ring' ? 'ring' : 'msk', np = cfg.players.length;
+  setMap(Math.max(3, np), kind === 'msk' ? (np <= 3 ? 48 : np === 4 ? 56 : 64) : 0);
+  G = { ver: 3, map: kind, size: MW, nsec: NSEC, day: 1, cur: 0, view: 0, nextId: 1, tiles: kind === 'msk' ? mskTerrain(seed) : genTerrain(seed), objs: [], heroes: [], players: [], log: [], week: null, over: false };
   cfg.players.forEach((p, i) => G.players.push({ id: i, name: p.name, fac: p.fac, kind: p.kind === 'bot' ? 'bot' : 'human', diff: clamp(p.diff == null ? 1 : p.diff, 0, DIFF.length - 1), col: p.col || PCOL[i], res: { gold: 5000, fuel: 5, brick: 10 }, alive: true, seen: new Array(MW * MH).fill(0), inbox: [], tavernDay: 0 }));
   G.view = Math.max(0, G.players.findIndex(p => p.kind !== 'bot'));
   const free = (x, y) => inMap(x, y) && passT(tileAt(x, y)) && !G.objs.some(o => o.x === x && o.y === y);
@@ -96,7 +97,8 @@ function genMap(cfg) {
     const cands = DIRS.map(([dx, dy]) => [o.x + dx, o.y + dy, Math.cos(Math.atan2(dy, dx) - toC)]).filter(([x, y]) => free(x, y)).sort((a, b) => b[2] - a[2]);
     if (cands.length) add({ t: 'mob', army: mobArmy(level), lvl: level }, cands[0][0], cands[0][1]);
   };
-  for (let k = 0; k < NSEC; k++) {
+  if (kind === 'msk') genMoscow(cfg, { free, near, add, guard });
+  else for (let k = 0; k < NSEC; k++) {
     const pl = G.players[k], fac = pl ? pl.fac : FAC_IDS[k % 3];
     const S = (r, deg) => secTile(k, r, deg);
     const [tx, ty] = S(15.5, 0);

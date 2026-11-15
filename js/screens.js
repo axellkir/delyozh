@@ -133,6 +133,9 @@ try {
   if (Array.isArray(saved)) saved.slice(0, MAX_PLAYERS).forEach((x, i) => { if (x && FACTIONS[x.fac] && KINDS.some(k => k[0] === x.kind)) seats[i] = { kind: x.kind, name: String(x.name || PCOL_NAME[i]).slice(0, 16), fac: x.fac, hero: FACTIONS[x.fac].heroes[x.hero] ? x.hero : -1, diff: DIFF[x.diff] ? x.diff : 1 }; });
 } catch (e) { /* настройки лобби не обязательны */ }
 const saveLobby = () => { try { localStorage.setItem(LOBBY_KEY, JSON.stringify(seats)); } catch (e) { /* не страшно */ } };
+const MAPS = [['msk', '🗺️ Москва 90-х', 'Настоящая Москва: река, мосты, шоссе, Лужники, Черкизон, Останкино. У каждого свой район, поровну добра вокруг.'], ['ring', '⭕ Схема', 'Симметричная схема из одинаковых секторов — когда нужен совсем честный расклад.']];
+let mapKind = 'msk';
+try { if (localStorage.getItem('delyozh_map') === 'ring') mapKind = 'ring'; } catch (e) { /* не страшно */ }
 const esc = t => String(t).replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
 
 function renderMenu() {
@@ -161,13 +164,17 @@ function renderMenu() {
     if (d.diff) p.diff = +d.diff;
     sfx('click'); saveLobby(); renderMenu();
   });
+  $('mapSeg').innerHTML = MAPS.map(([k, t, d]) => `<span class="${mapKind === k ? 'on' : ''}" data-map="${k}" title="${d}">${t}</span>`).join('');
+  $('mapNote').textContent = MAPS.find(m => m[0] === mapKind)[2];
+  document.querySelectorAll('[data-map]').forEach(el => el.onclick = () => { mapKind = el.dataset.map; try { localStorage.setItem('delyozh_map', mapKind); } catch (e) { /* не страшно */ } sfx('click'); renderMenu(); });
   $('contBtn').disabled = !hasSave();
 }
+$('guideLink').onclick = e => { e.preventDefault(); exportMapPng(); };
 $('newBtn').onclick = () => {
   audioInit();
   if (hasSave() && !confirm('Начать новую игру? Сохранённая партия пропадёт.')) return;
   const players = seats.map((p, i) => ({ ...p, col: PCOL[i], name: p.name.trim() || PCOL_NAME[i] })).filter(p => p.kind !== 'off');
-  genMap({ players });
+  genMap({ players, map: mapKind });
   startPlaying();
 };
 $('contBtn').onclick = () => { audioInit(); if (loadGame()) startPlaying(); else toast('Сохранение не читается', true); };

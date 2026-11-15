@@ -12,13 +12,14 @@ const DAYS = Number(process.env.TEST_DAYS || 200);
 const H = (name, fac, hero) => ({ name, fac, hero, kind: 'human' });
 const BOT = (name, fac, diff) => ({ name, fac, kind: 'bot', diff });
 const SCENARIOS = [
-  { name: '3 человека', players: [H('Красные', 'kach'), H('Жёлтые', 'rynok'), H('Синие', 'neform')] },
-  { name: '2 человека', players: [H('Красные', 'neform', 2), H('Жёлтые', 'kach', 3)] },
-  { name: '3 человека, одна бригада', players: [H('А', 'rynok', 0), H('Б', 'rynok', 1), H('В', 'rynok', 2)] },
-  { name: '1 человек + 2 бота', players: [H('Красные', 'kach'), BOT('Жёлтые', 'rynok', 1), BOT('Синие', 'neform', 2)] },
-  { name: '2 человека + 2 бота (карта на 4)', players: [H('Красные', 'kach'), BOT('Жёлтые', 'rynok', 0), H('Синие', 'neform'), BOT('Зелёные', 'kach', 2)] },
-  { name: 'бот ходит первым, 5 бригад', players: [BOT('Красные', 'neform', 1), H('Жёлтые', 'rynok'), BOT('Синие', 'kach', 1), BOT('Зелёные', 'rynok', 2), H('Фиолетовые', 'neform')] },
-  { name: '1 человек + 5 ботов (карта на 6)', players: [H('Красные', 'kach'), BOT('Жёлтые', 'rynok', 0), BOT('Синие', 'neform', 1), BOT('Зелёные', 'kach', 1), BOT('Фиолетовые', 'rynok', 2), BOT('Рыжие', 'neform', 2)] },
+  { name: 'Москва: 3 человека', players: [H('Красные', 'kach'), H('Жёлтые', 'rynok'), H('Синие', 'neform')] },
+  { name: 'Москва: 2 человека', players: [H('Красные', 'neform', 2), H('Жёлтые', 'kach', 3)] },
+  { name: 'Москва: 1 человек + 2 бота', players: [H('Красные', 'kach'), BOT('Жёлтые', 'rynok', 1), BOT('Синие', 'neform', 2)] },
+  { name: 'Москва: 2 человека + 2 бота', players: [H('Красные', 'kach'), BOT('Жёлтые', 'rynok', 0), H('Синие', 'neform'), BOT('Зелёные', 'kach', 2)] },
+  { name: 'Москва: бот ходит первым, 5 бригад', players: [BOT('Красные', 'neform', 1), H('Жёлтые', 'rynok'), BOT('Синие', 'kach', 1), BOT('Зелёные', 'rynok', 2), H('Фиолетовые', 'neform')] },
+  { name: 'Москва: 1 человек + 5 ботов', players: [H('Красные', 'kach'), BOT('Жёлтые', 'rynok', 0), BOT('Синие', 'neform', 1), BOT('Зелёные', 'kach', 1), BOT('Фиолетовые', 'rynok', 2), BOT('Рыжие', 'neform', 2)] },
+  { name: 'Схема: 3 человека, одна бригада', map: 'ring', players: [H('А', 'rynok', 0), H('Б', 'rynok', 1), H('В', 'rynok', 2)] },
+  { name: 'Схема: 1 человек + 5 ботов', map: 'ring', players: [H('Красные', 'kach'), BOT('Жёлтые', 'rynok', 0), BOT('Синие', 'neform', 1), BOT('Зелёные', 'kach', 1), BOT('Фиолетовые', 'rynok', 2), BOT('Рыжие', 'neform', 2)] },
 ];
 
 function findChrome() {
@@ -51,17 +52,20 @@ try {
     page.on('console', m => { if (m.type() === 'error') pageErrors.push('console: ' + m.text()); });
     await page.goto(url, { waitUntil: 'load' });
     await page.addScriptTag({ content: bot });
-    const r = await page.evaluate(async (players, days) => {
-      genMap({ players });
+    const r = await page.evaluate(async (players, days, map) => {
+      genMap({ players, map });
+      const gen = { objs: G.objs.length, towns: G.objs.filter(o => o.t === 'town').length, starts: G.players.map(p => { const t = G.objs.find(o => o.t === 'town' && o.owner === p.id); return t ? t.name : '—'; }) };
       const res = await BOT.run(days);
       const saved = (saveGame(), loadGame());
-      return { errors: res.errors, day: res.day, over: res.over, ms: res.ms, battles: res.battles, sims: res.sims, map: res.map, captures: res.captures, eliminated: res.eliminated, saved: !!saved || res.over, version: typeof VERSION === 'string' ? VERSION : null };
-    }, sc.players, DAYS);
+      return { errors: res.errors, day: res.day, over: res.over, ms: res.ms, battles: res.battles, sims: res.sims, map: res.map, captures: res.captures, eliminated: res.eliminated, saved: !!saved || res.over, gen, version: typeof VERSION === 'string' ? VERSION : null };
+    }, sc.players, DAYS, sc.map);
     await page.close();
     const errors = [...r.errors, ...pageErrors];
     if (!r.saved) errors.push('сохранение не читается обратно');
+    if (r.gen.starts.includes('—')) errors.push('у бригады нет стартового города: ' + r.gen.starts.join(', '));
+    if (r.gen.towns < sc.players.length) errors.push('городов меньше, чем бригад');
     if (r.day < 3) errors.push('игра не продвинулась дальше дня ' + r.day);
-    const tail = `карта ${r.map}×${r.map}, день ${r.day}, боёв ${r.battles}, прикидок ${r.sims}, захватов ${r.captures}, выбыли: ${r.eliminated.join(', ') || 'никто'}, ${r.ms} мс`;
+    const tail = `карта ${r.map}×${r.map}, объектов ${r.gen.objs}, городов ${r.gen.towns}, день ${r.day}, боёв ${r.battles}, прикидок ${r.sims}, захватов ${r.captures}, выбыли: ${r.eliminated.join(', ') || 'никто'}, ${r.ms} мс`;
     if (errors.length) { failed++; console.log(`✗ ${sc.name}: ${tail}`); errors.slice(0, 5).forEach(e => console.log('    ' + e.split('\n').slice(0, 4).join('\n    '))); }
     else console.log(`✓ ${sc.name}: ${r.over ? 'партия доиграна' : `партия не закончилась за ${DAYS} дней (не ошибка)`}, ${tail}`);
   }
