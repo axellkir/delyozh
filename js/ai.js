@@ -8,7 +8,7 @@ const AI = { sims: 0 };
 // что бот отвечает на окна игры вместо человека
 function botAnswer(pid, title, buttons) {
   if (title.includes('уровень')) { const r = Math.random(); return r < 0.45 ? 0 : r < 0.8 ? 1 : 2; }
-  if (title.includes('Общак')) return G.players[pid].res.gold < 4000 ? 0 : 1;
+  if (buttons[0].startsWith('Забрать')) return G.players[pid].res.gold < 4000 ? 0 : 1;
   return 0;
 }
 
@@ -53,10 +53,34 @@ function aiTown(p, D) {
     for (const id of BUILD_ORDER) if (buildState(t, BLD[id]) === 'ok') { build(t, id); break; }
     const h = heroAt(t.x, t.y), own = h && h.owner === p.id ? h : null;
     for (const u of FACTIONS[t.fac].units.slice().reverse()) { const n = maxRecruit(t, u); if (n > 0) recruit(t, u, n, own); }
-    if (own) t.garrison.forEach((s, i) => { if (s && addUnits(own.army, s.u, s.n)) t.garrison[i] = null; });
+    if (own) aiPickup(own, t);
     if (!h && myHeroes(p.id).length < D.heroes && p.res.gold >= HERO_COST + 3000) hireHero(t);
     if (!h && !myHeroes(p.id).length && p.res.gold >= HERO_COST) hireHero(t); // без героя бригада не живёт
   }
+}
+
+// Герой в своём городе забирает гарнизон. Если места нет — меняет свой самый слабый отряд на более сильный из гарнизона.
+function aiPickup(h, t) {
+  const val = s => (s ? s.n * UNITS[s.u].hp * (1 + UNITS[s.u].att / 10) : 0);
+  for (let guard = 0; guard < 12; guard++) {
+    let moved = false;
+    const order = t.garrison.map((s, i) => [val(s), i]).filter(x => x[0] > 0).sort((a, b) => b[0] - a[0]);
+    for (const [v, i] of order) {
+      const s = t.garrison[i];
+      if (addUnits(h.army, s.u, s.n)) { t.garrison[i] = null; moved = true; continue; }
+      const weak = h.army.reduce((b, x, k) => (x && (b < 0 || val(x) < val(h.army[b])) ? k : b), -1);
+      if (weak >= 0 && val(h.army[weak]) < v) { const tmp = h.army[weak]; h.army[weak] = s; t.garrison[i] = tmp; moved = true; break; }
+    }
+    if (!moved) break;
+  }
+}
+// сколько силы герой реально унесёт из города: то, что сольётся с его отрядами или встанет на свободное место
+function aiGain(h, t) {
+  const have = new Set(h.army.filter(Boolean).map(s => s.u)); let free = h.army.filter(s => !s).length, v = 0;
+  const all = t.garrison.filter(Boolean).map(s => ({ u: s.u, n: s.n }));
+  for (const u of FACTIONS[t.fac].units) { const n = maxRecruit(t, u); if (n > 0) all.push({ u, n }); }
+  for (const s of all) { if (!have.has(s.u)) { if (free <= 0) continue; free--; have.add(s.u); } v += s.n * UNITS[s.u].hp * (1 + UNITS[s.u].att / 10); }
+  return v;
 }
 
 // ---------- цели героя ----------
@@ -69,23 +93,24 @@ function aiTargets(h, p, D) {
   const out = [], see = (x, y) => p.seen[y * MW + x], zone = mobZone(), peace = G.day < D.peace;
   const mobById = id => G.objs.find(o => o.id === id);
   for (const o of G.objs) {
-    if (!see(o.x, o.y)) continue;
+    if (!see(o.x, o.y) && o.t !== 'town') continue; // где стоят районы, знает вся Москва; остальное — только разведанное
     let w = 0, defs = [];
     if (o.t === 'pile') w = 3;
     else if (o.t === 'mine' && o.owner !== h.owner) w = 4;
     else if (o.t === 'chest') w = 3;
     else if (o.t === 'art') w = o.art === 'key' ? 9 : 5;
-    else if (o.t === 'bonus' && !o.seen.includes(h.id)) w = 2;
+    else if (o.t === 'bonus' && !o.seen.includes(h.id)) w = o.kind === 'mp' ? 0.8 : 2.5;
     else if (o.t === 'mob') { w = 1.5; defs = [{ army: o.army }]; }
     else if (o.t === 'town' && o.owner !== h.owner) {
       if (peace && o.owner >= 0) continue;
-      w = 9;
+      w = see(o.x, o.y) ? 9 : 5;
       const dh = heroAt(o.x, o.y);
       if (dh) defs.push({ army: dh.army, hero: dh, fence: !!o.built.fence });
-      defs.push({ army: armyCount(o.garrison) ? o.garrison : [{ u: FACTIONS[o.fac].units[0], n: 6 + 3 * weekNo() }], fence: !!o.built.fence });
+      defs.push({ army: armyCount(o.garrison) ? o.garrison : militiaOf(o), fence: !!o.built.fence });
     } else if (o.t === 'town' && o.owner === h.owner && (h.x !== o.x || h.y !== o.y)) {
       const mine = armyValue(h.army), threat = G.heroes.some(e => e.owner !== h.owner && see(e.x, e.y) && Math.hypot(e.x - o.x, e.y - o.y) < 9 && !heroAt(o.x, o.y));
-      if (threat) w = 8; else if (townStock(o) > mine * 0.3) w = 5;
+      const gain = aiGain(h, o);
+      if (threat) w = 8; else if (gain > mine * 0.25) w = Math.min(10, 4 + 4 * gain / Math.max(1, mine));
     }
     if (!w) continue;
     // охрана у клетки: без драки с ней туда не встать
@@ -121,6 +146,8 @@ async function aiHero(h, p, D) {
       .sort((a, b) => a.d / a.w - b.d / b.w).slice(0, 10);
     const cands = [];
     for (const t of ts) { const pl = findPath(h, t.x, t.y); if (!pl) continue; const c = pl.path.length ? pl.path[pl.path.length - 1].c : 0; cands.push({ t, pl, sc: (c + 6) / t.w }); }
+    // разведка — такая же цель, как остальные: иначе герой вечно крутится вокруг дома
+    { const f = aiFrontier(h, p); if (f && (f.x !== h.x || f.y !== h.y) && !rejected.has('fr')) { const pl = findPath(h, f.x, f.y); if (pl && pl.path.length) { const end = pl.path[pl.path.length - 1], zid = mobZone()[end.y * MW + end.x], m = zid >= 0 && G.objs.find(o => o.id === zid); cands.push({ t: { key: 'fr', defs: m ? [{ army: m.army }] : [] }, pl, sc: (end.c + 6) / 2.2 }); } } }
     cands.sort((a, b) => a.sc - b.sc);
     let go = null;
     for (const c of cands) {
@@ -140,6 +167,7 @@ async function aiHero(h, p, D) {
     }
     const before = h.mp, bx = h.x, by = h.y;
     await moveHero(h, go.pl);
+    { const here = heroById(h.id) && townAt(h.x, h.y); if (here && here.owner === h.owner) { aiTown(p, D); } } // зашёл домой — сразу забрал пополнение
     if (heroById(h.id) && h.mp === before && h.x === bx && h.y === by) rejected.add(go.t.key);
   }
 }

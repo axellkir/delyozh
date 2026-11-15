@@ -1,0 +1,52 @@
+// Снимки игры без окна — посмотреть глазами, что нарисовалось. Запуск: node tests/shot.mjs <папка для картинок> [число бригад]
+// Делает: всю карту целиком, центр и стартовый район в настоящем масштабе.
+import http from 'node:http';
+import fs from 'node:fs';
+import path from 'node:path';
+import { fileURLToPath } from 'node:url';
+import puppeteer from 'puppeteer-core';
+
+const repo = path.join(path.dirname(fileURLToPath(import.meta.url)), '..');
+const out = path.resolve(process.argv[2] || 'shots'), np = Number(process.argv[3] || 3), map = process.argv[4] || 'msk';
+fs.mkdirSync(out, { recursive: true });
+const chrome = [process.env.CHROME_PATH, '/Applications/Google Chrome.app/Contents/MacOS/Google Chrome', '/usr/bin/google-chrome'].find(p => p && fs.existsSync(p));
+const types = { '.html': 'text/html; charset=utf-8', '.js': 'text/javascript; charset=utf-8', '.jpg': 'image/jpeg', '.png': 'image/png' };
+const server = http.createServer((req, res) => {
+  const file = path.join(repo, decodeURIComponent(req.url.split('?')[0]).replace(/^\/$/, '/index.html'));
+  fs.readFile(file, (err, data) => { if (err) { res.writeHead(404).end(); return; } res.writeHead(200, { 'Content-Type': types[path.extname(file)] || 'application/octet-stream' }); res.end(data); });
+});
+await new Promise(r => server.listen(0, '127.0.0.1', r));
+const browser = await puppeteer.launch({ executablePath: chrome, headless: true, args: ['--no-sandbox', '--mute-audio'] });
+const page = await browser.newPage();
+await page.setViewport({ width: 1440, height: 900 });
+page.on('pageerror', e => console.log('ОШИБКА СТРАНИЦЫ:', String(e)));
+await page.goto(`http://127.0.0.1:${server.address().port}/`, { waitUntil: 'load' });
+const facs = ['kach', 'rynok', 'neform'];
+const info = await page.evaluate((np, map, facs) => {
+  window.curtain = async () => {};
+  genMap({ map, players: Array.from({ length: np }, (_, i) => ({ name: PCOL_NAME[i], fac: facs[i % 3], kind: i ? 'bot' : 'human', col: PCOL[i] })) });
+  SPEED = 0; startPlaying();
+  viewP().seen.fill(1);
+  // вся карта одной картинкой, с объектами
+  const S = 1400, k = S / terr.width, o = document.createElement('canvas'); o.id = 'whole'; o.width = o.height = S; o.style.cssText = 'position:fixed;left:0;top:0;z-index:999';
+  const x = o.getContext('2d'); x.drawImage(terr, 0, 0, S, S); x.textAlign = 'center'; x.textBaseline = 'middle';
+  for (const ob of G.objs) {
+    const X = (ob.x + .5) * TS * k, Y = (ob.y + .5) * TS * k;
+    if (ob.t === 'town') { x.fillStyle = ob.owner >= 0 ? pcol(ob.owner) : '#fff'; x.fillRect(X - 9, Y - 9, 18, 18); x.strokeStyle = '#000'; x.strokeRect(X - 9, Y - 9, 18, 18); x.font = 'bold 13px sans-serif'; x.lineWidth = 3; x.strokeText(ob.name, X, Y + 18); x.fillStyle = '#ffd21a'; x.fillText(ob.name, X, Y + 18); }
+    else { x.fillStyle = ob.t === 'mob' ? '#f33' : ob.nm ? '#ff0' : ob.t === 'mine' ? '#0ff' : 'rgba(255,255,255,.8)'; x.beginPath(); x.arc(X, Y, ob.nm ? 5 : 3, 0, 7); x.fill(); }
+  }
+  document.body.appendChild(o);
+  const t = G.objs.find(q => q.t === 'town' && q.owner === 0);
+  return { size: MW, objs: G.objs.length, home: [t.x, t.y, t.name], cx: Math.floor(MCX), cy: Math.floor(MCY) };
+}, np, map, facs);
+console.log(JSON.stringify(info));
+await page.screenshot({ path: path.join(out, 'whole.png'), clip: { x: 0, y: 0, width: 1400, height: 900 } });
+await page.setViewport({ width: 1400, height: 1400 });
+await page.screenshot({ path: path.join(out, 'whole-full.png'), clip: { x: 0, y: 0, width: 1400, height: 1400 } });
+await page.setViewport({ width: 1440, height: 900 });
+for (const [name, x, y] of [['center', info.cx - 1, info.cy], ['home', info.home[0], info.home[1]]]) {
+  await page.evaluate((x, y) => { const w = document.getElementById('whole'); if (w) w.remove(); document.querySelectorAll('.ov').forEach(e => { e.hidden = true; }); centerOn(x, y); }, x, y);
+  await new Promise(r => setTimeout(r, 400));
+  await page.screenshot({ path: path.join(out, name + '.png') });
+}
+await browser.close(); server.close();

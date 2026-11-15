@@ -6,6 +6,9 @@ let BOTTING = false; // сейчас ходит бот: люди смотрят,
 let SPEED = 1; // 0 — для автотестов и быстрых боёв: без пауз
 const sleep = ms => (SPEED && ms > 0 ? new Promise(r => setTimeout(r, ms * SPEED)) : Promise.resolve());
 const humans = () => G.players.filter(p => p.kind !== 'bot');
+// точка на карте может носить своё имя и значок (Лужники, Останкино…) поверх обычных «ларёк», «видеосалон»
+const mineOf = o => ({ ...MINE[o.kind], ...(o.nm && { name: o.nm }), ...(o.em && { em: o.em }), ...(o.amt && { amt: o.amt }) });
+const bonusOf = o => ({ ...BONUS[o.kind], ...(o.nm && { name: o.nm }), ...(o.em && { em: o.em }), ...(o.txt && { text: o.txt }) });
 const pcol = pid => (G.players[pid] && G.players[pid].col) || PCOL[pid] || '#aaa';
 const viewP = () => G.players[G.view == null ? G.cur : G.view]; // чьими глазами показываем карту
 // сообщение живому игроку, которое он увидит в начале своего хода
@@ -36,7 +39,7 @@ function log(t) { G.log.unshift(`д.${G.day}: ${t}`); G.log.length = Math.min(G.
 function dailyIncome(pid) {
   const inc = { gold: 0, fuel: 0, brick: 0 };
   for (const t of myTowns(pid)) inc.gold += TOWN_INCOME + (t.built.adm1 ? 500 : 0) + (t.built.adm2 ? 1000 : 0);
-  for (const o of G.objs) if (o.t === 'mine' && o.owner === pid) inc[MINE[o.kind].res] += MINE[o.kind].amt;
+  for (const o of G.objs) if (o.t === 'mine' && o.owner === pid) inc[MINE[o.kind].res] += mineOf(o).amt;
   for (const h of myHeroes(pid)) inc.gold += heroStats(h).gold;
   return inc;
 }
@@ -181,7 +184,7 @@ async function enterTile(h, last, action) {
     removeObj(o); return false;
   }
   if (o.t === 'mine') {
-    if (o.owner !== h.owner) { if (o.owner >= 0) notify(o.owner, `${p.name} отжали у вас точку: ${MINE[o.kind].name.toLowerCase()}.${botLine(h.owner, 'mine')}`); o.owner = h.owner; reveal(h.owner, o.x, o.y, 3); sfx('flag'); toast(`${MINE[o.kind].name} теперь ваш: +${MINE[o.kind].amt} ${RES_ICON[MINE[o.kind].res]} в день`); log(`${p.name} взяли ${MINE[o.kind].name.toLowerCase()}`); }
+    if (o.owner !== h.owner) { if (o.owner >= 0) notify(o.owner, `${p.name} отжали у вас точку: ${mineOf(o).name}.${botLine(h.owner, 'mine')}`); o.owner = h.owner; reveal(h.owner, o.x, o.y, 3); sfx('flag'); toast(`${mineOf(o).name} — теперь ваша точка: +${mineOf(o).amt} ${RES_ICON[MINE[o.kind].res]} в день`); log(`${p.name} взяли точку: ${mineOf(o).name}`); }
     return false;
   }
   if (o.t === 'town') {
@@ -190,18 +193,18 @@ async function enterTile(h, last, action) {
   }
   if (o.t === 'chest') {
     const g = rnd(10, 20) * 100, xp = Math.round(g * 0.75);
-    const c = await ask('📦 Общак', `Нашли чужой общак. Что делаем?`, [`Забрать ${g}💵`, `Раздать пацанам: +${xp} опыта`], { pid: h.owner });
+    const c = await ask(`${o.em || '📦'} ${o.nm || 'Общак'}`, o.nm ? 'Сорвали куш. Что делаем?' : 'Нашли чужой общак. Что делаем?', [`Забрать ${g}💵`, `Раздать пацанам: +${xp} опыта`], { pid: h.owner });
     if (c === 0) p.res.gold += g; else await giveXp(h, xp);
     sfx('coin'); removeObj(o); return true;
   }
   if (o.t === 'art') {
     const A = ARTS[o.art];
     h.arts.push(o.art); sfx('level');
-    await ask(`${A.em} ${A.name}`, `Нашли: ${A.desc}.`, ['Надеть'], { pid: h.owner });
+    await ask(`${A.em} ${A.name}`, `${o.nm ? o.nm + '. ' : ''}Нашли: ${A.desc}.`, ['Надеть'], { pid: h.owner });
     log(`${h.name} нашёл ${A.name.toLowerCase()}`); removeObj(o); return true;
   }
   if (o.t === 'bonus') {
-    const B = BONUS[o.kind];
+    const B = bonusOf(o);
     if (o.seen.includes(h.id)) { toast(o.kind === 'mp' ? 'Шаурма кончилась, приходите на следующей неделе' : 'Тут уже были'); return true; }
     o.seen.push(h.id); sfx('level');
     if (o.kind === 'att') h.att++; else if (o.kind === 'def') h.def++; else if (o.kind === 'pow') h.pow++; else if (o.kind === 'mp') h.mp += 40;
@@ -267,13 +270,19 @@ async function fightHero(h, o, inTown) {
   await giveXp(win, xpFromKills(bL, r.winner === 0 ? r.dArmy : r.aArmy) + 500);
   return r.winner === 0;
 }
+// Кто выходит за пустой город. За ничейный — немного дворовых; за город бригады — толпа побольше, со второй недели с подмогой
+function militiaOf(t) {
+  const u = FACTIONS[t.fac].units, w = weekNo();
+  if (t.owner < 0) return [{ u: u[0], n: 6 + 3 * w }, null, null, null, null];
+  return [{ u: u[0], n: 8 + 5 * w }, w >= 2 ? { u: u[1], n: 3 * w } : null, w >= 4 ? { u: u[2], n: w } : null, null, null];
+}
 async function siege(h, t) {
   const p = G.players[h.owner];
   const def = heroAt(t.x, t.y);
   if (def && def.owner !== h.owner) { const won = await fightHero(h, def, true); if (!won) return; }
   if (!heroById(h.id)) return;
   const militia = armyCount(t.garrison) === 0;
-  if (militia) { t.garrison = [{ u: FACTIONS[t.fac].units[0], n: 6 + 3 * weekNo() }, null, null, null, null]; await ask('Ополчение!', `Город пустой, но за него вышли дворовые: ${armyText(t.garrison)}.`, ['В бой'], { pid: h.owner }); }
+  if (militia) { t.garrison = militiaOf(t); await ask('Ополчение!', `Город пустой, но за него вышли дворовые: ${armyText(t.garrison)}.`, ['В бой'], { pid: h.owner }); }
   if (isBot(h.owner) && t.owner >= 0 && !isBot(t.owner)) {
     centerOn(t.x, t.y);
     await ask('🏚️ Штурм!', `<b style="color:${G.players[t.owner].col}">${G.players[t.owner].name}</b>, к компьютеру! 🤖 ${h.name} (${G.players[h.owner].name}) штурмует ${t.name}.<br>У них: ${armyText(h.army)}.`, ['Отбиваемся'], { pid: t.owner });
@@ -376,7 +385,7 @@ function trade(pid, res, buy) {
 const SAVE_KEY = 'delyozh_save_v1';
 function saveGame() { try { localStorage.setItem(SAVE_KEY, JSON.stringify(G)); } catch (e) { console.warn('save failed', e); } }
 function loadGame() {
-  try { const s = localStorage.getItem(SAVE_KEY); if (!s) return false; G = JSON.parse(s); setMap(G.nsec || 3); reindex(); return true; }
+  try { const s = localStorage.getItem(SAVE_KEY); if (!s) return false; G = JSON.parse(s); setMap(G.nsec || 3, G.map === 'msk' ? G.size : 0); reindex(); return true; }
   catch (e) { return false; }
 }
 const hasSave = () => { try { return !!localStorage.getItem(SAVE_KEY); } catch (e) { return false; } };

@@ -13,6 +13,8 @@ const RES_NAME = { gold: 'Бабло', fuel: 'Бензин', brick: 'Кирпи�
 const PCOL = ['#e8343c', '#f5c42c', '#2fb8ea', '#4cc552', '#b97cf5', '#f08a2c'];
 const PCOL_NAME = ['Красные', 'Жёлтые', 'Синие', 'Зелёные', 'Фиолетовые', 'Рыжие'];
 const MAX_PLAYERS = 6;
+// true — вместо нарисованной кодом подложки карты «Москва 90-х» берётся картинка assets/map/moscow.jpg (см. docs/MAP-ART.md)
+const MAP_ART = false;
 
 // Отряды. att/def — атака/защита, dmg — урон одного бойца, hp — здоровье одного, spd — скорость (клеток за ход в бою),
 // grow — прирост в неделю, cost — цена найма. Флаги: shots (стрелок), fly (перелетает), noRet (без ответки), twice (бьёт дважды)
@@ -69,9 +71,9 @@ const SPECS = {
 // sim — прикидывает бой заранее, keep — какую долю армии готов сохранить после драки, slack — как часто ленится,
 // peace — до какого дня не трогает чужие бригады (местных бьёт сразу).
 const DIFF = [
-  { name: 'Лёгкий', em: '🐣', income: 0.75, edge: 2, sim: false, keep: 0.7, spells: false, slack: 0.3, heroes: 1, peace: 15, desc: 'Доход −25%, без понтов, ленится, две недели никого не трогает' },
-  { name: 'Обычный', em: '🤖', income: 1, edge: 1.5, sim: true, keep: 0.55, spells: true, slack: 0, heroes: 2, peace: 10, desc: 'Играет по тем же правилам, что и вы' },
-  { name: 'Злой', em: '😈', income: 1.25, edge: 1.3, sim: true, keep: 0.35, spells: true, slack: 0, heroes: 3, peace: 7, desc: 'Доход +25%, смелее лезет в драку, держит трёх героев' },
+  { name: 'Лёгкий', em: '🐣', income: 0.75, edge: 2, sim: false, keep: 0.7, spells: false, slack: 0.3, heroes: 1, peace: 22, desc: 'Доход −25%, без понтов, ленится, три недели никого не трогает' },
+  { name: 'Обычный', em: '🤖', income: 1, edge: 1.5, sim: true, keep: 0.55, spells: true, slack: 0, heroes: 2, peace: 15, desc: 'Играет по тем же правилам, что и вы' },
+  { name: 'Злой', em: '😈', income: 1.25, edge: 1.3, sim: true, keep: 0.35, spells: true, slack: 0, heroes: 3, peace: 10, desc: 'Доход +25%, смелее лезет в драку, держит трёх героев' },
 ];
 const BOT_LINES = {
   town: ['Слышь, это теперь наш район.', 'Город сменил крышу. Вопросы?', 'Было ваше — стало наше.'],

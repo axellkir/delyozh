@@ -14,12 +14,15 @@ addEventListener('resize', resize); resize();
 // ---------- подложка карты (рисуется один раз) ----------
 function prerender() {
   terr = document.createElement('canvas'); terr.width = MW * TS; terr.height = MH * TS;
-  const g = terr.getContext('2d');
+  const g = terr.getContext('2d'), msk = G.map === 'msk';
   g.textAlign = 'center'; g.textBaseline = 'middle';
   for (let y = 0; y < MH; y++) for (let x = 0; x < MW; x++) {
     const t = tileAt(x, y), X = x * TS, Y = y * TS, h = hash2(x, y, 5);
-    const fill = ['#7b7464', '#4c4c54', '#3f7a36', '#2f6fb0', '#8f8f88', '#a52a2a', '#1e4524'][t];
+    // на карте Москвы реки и дороги рисуются плавными линиями поверх земли (см. ниже), кроме брусчатки Кремля
+    const soft = msk && (t === T.WATER || (t === T.ROAD && Math.hypot(x + 0.5 - MCX, y + 0.5 - MCY) > 4.2));
+    const fill = soft ? '#7b7464' : ['#7b7464', '#4c4c54', '#3f7a36', '#2f6fb0', '#8f8f88', '#a52a2a', '#1e4524'][t];
     g.fillStyle = fill; g.fillRect(X, Y, TS, TS);
+    if (soft) continue;
     if (t === T.GROUND) { for (let i = 0; i < 6; i++) { g.fillStyle = `rgba(0,0,0,${0.05 + hash2(x * 7 + i, y, 9) * 0.1})`; g.fillRect(X + hash2(x, y * 3 + i, 1) * TS, Y + hash2(x + i, y, 2) * TS, 3, 3); } }
     if (t === T.ROAD) { g.fillStyle = 'rgba(255,255,255,.05)'; g.fillRect(X, Y, TS, 2); if (h < 0.15) { g.fillStyle = '#3a3a40'; g.beginPath(); g.ellipse(X + 24, Y + 28, 9, 5, 0, 0, 7); g.fill(); } }
     if (t === T.PARK || t === T.FOREST) { g.font = '30px serif'; if (h < 0.7) g.fillText(t === T.FOREST ? '🌲' : h < 0.35 ? '🌳' : '🌲', X + 24 + (h - 0.35) * 14, Y + 24); }
@@ -30,7 +33,41 @@ function prerender() {
     }
     if (t === T.WALL) { g.fillStyle = '#7a1a1a'; for (let i = 0; i < 4; i++) g.fillRect(X + 2 + i * 12, Y, 7, 8); g.strokeStyle = '#5a1010'; g.strokeRect(X + 0.5, Y + 0.5, TS - 1, TS - 1); }
   }
+  if (msk) paintMoscow(g);
   g.font = '40px serif'; g.fillText('⭐', (MCX) * TS, (MCY - 3) * TS + 24);
+}
+// Плавные реки и дороги по клеткам: соседние клетки одного типа соединяются толстой линией со скруглёнными концами
+function paintMoscow(g) {
+  const link = (t, col, w, dash) => {
+    g.strokeStyle = col; g.lineWidth = w; g.lineCap = g.lineJoin = 'round'; g.setLineDash(dash || []); g.beginPath();
+    for (let y = 0; y < MH; y++) for (let x = 0; x < MW; x++) {
+      if (tileAt(x, y) !== t || (t === T.ROAD && Math.hypot(x + 0.5 - MCX, y + 0.5 - MCY) <= 4.2)) continue;
+      const cx = x * TS + TS / 2, cy = y * TS + TS / 2;
+      g.moveTo(cx, cy); g.lineTo(cx + 0.01, cy);
+      for (const [dx, dy] of [[1, 0], [0, 1], [1, 1], [-1, 1]]) {
+        if (tileAt(x + dx, y + dy) !== t) continue;
+        if (dx && dy && (tileAt(x + dx, y) === t || tileAt(x, y + dy) === t)) continue; // угол уже соединён через соседа
+        g.moveTo(cx, cy); g.lineTo(cx + dx * TS, cy + dy * TS);
+      }
+    }
+    g.stroke(); g.setLineDash([]);
+  };
+  link(T.WATER, '#1c4f84', TS * 1.04); link(T.WATER, '#2f7fc4', TS * 0.84); link(T.WATER, 'rgba(255,255,255,.16)', 3, [14, 22]);
+  link(T.ROAD, '#26262c', TS * 0.66); link(T.ROAD, '#54545e', TS * 0.52); link(T.ROAD, '#e6cf74', 2, [9, 13]);
+  g.textAlign = 'center'; g.textBaseline = 'middle';
+  for (const L of mskLabels()) {
+    g.save(); g.translate(L.x * TS, L.y * TS); g.rotate(L.ang);
+    g.font = L.kind === 'road' ? 'bold 14px "Trebuchet MS", sans-serif' : 'italic bold 15px Georgia, serif';
+    g.lineWidth = 4; g.strokeStyle = 'rgba(18,14,24,.8)'; g.strokeText(L.text, 0, 0);
+    g.fillStyle = L.kind === 'road' ? '#f3e9c8' : L.kind === 'park' ? '#d6f2c4' : '#cfe6ff'; g.fillText(L.text, 0, 0);
+    g.restore();
+  }
+  if (MAP_ART) { const img = new Image(); img.onload = () => { if (terr) terr.getContext('2d').drawImage(img, 0, 0, terr.width, terr.height); }; img.src = 'assets/map/moscow.jpg'; }
+}
+// Скачать подложку карты картинкой — как основу для художника или нейросети
+function exportMapPng() {
+  if (!terr) return;
+  terr.toBlob(b => { const a = document.createElement('a'); a.href = URL.createObjectURL(b); a.download = `delyozh-map-${MW}.png`; a.click(); setTimeout(() => URL.revokeObjectURL(a.href), 5000); });
 }
 
 // ---------- камера ----------
@@ -50,13 +87,18 @@ function toast(t, force) { if (BOTTING && !force && !B) return; const el = $('to
 const sizeWord = n => (n < 5 ? 'Несколько' : n < 10 ? 'Группа' : n < 20 ? 'Толпа' : n < 50 ? 'Банда' : 'Орда');
 function objLabel(o) {
   if (o.t === 'town') return `${o.name} — ${o.owner >= 0 ? G.players[o.owner].name : 'ничей'}`;
-  if (o.t === 'mine') return `${MINE[o.kind].name}: +${MINE[o.kind].amt}${RES_ICON[MINE[o.kind].res]} в день — ${o.owner >= 0 ? G.players[o.owner].name : 'ничей'}`;
+  if (o.t === 'mine') return `${mineOf(o).name}: +${mineOf(o).amt}${RES_ICON[MINE[o.kind].res]} в день — ${o.owner >= 0 ? G.players[o.owner].name : 'ничей'}`;
   if (o.t === 'pile') return `${RES_NAME[o.res]}: ${o.amt}`;
-  if (o.t === 'chest') return 'Общак — бабло или опыт';
-  if (o.t === 'art') return `${ARTS[o.art].name}: ${ARTS[o.art].desc}`;
-  if (o.t === 'bonus') return `${BONUS[o.kind].name}${UI.sel && o.seen.includes(UI.sel) ? ' (уже были)' : ''}`;
+  if (o.t === 'chest') return `${o.nm || 'Общак'} — бабло или опыт`;
+  if (o.t === 'art') return `${o.nm ? o.nm + ' · ' : ''}${ARTS[o.art].name}: ${ARTS[o.art].desc}`;
+  if (o.t === 'bonus') return `${bonusOf(o).name}${UI.sel && o.seen.includes(UI.sel) ? ' (уже были)' : ''}`;
   if (o.t === 'mob') { const n = armyCount(o.army), s = o.army.find(Boolean); return `${o.boss ? 'Кремлёвский полк' : sizeWord(n) + ': ' + UNITS[s.u].name.toLowerCase()} (${n < 5 ? '1–4' : n < 10 ? '5–9' : n < 20 ? '10–19' : n < 50 ? '20–49' : '50+'})`; }
   return '';
+}
+// подпись под точкой на карте
+function mapTag(c, text, x, y, big) {
+  c.font = big ? 'bold 14px "Trebuchet MS", sans-serif' : 'bold 11px "Trebuchet MS", sans-serif';
+  c.lineWidth = 3; c.strokeStyle = 'rgba(18,14,24,.9)'; c.strokeText(text, x, y); c.fillStyle = big ? '#ffd21a' : '#fff'; c.fillText(text, x, y);
 }
 function drawMap() {
   const c = ctx, cam = UI.cam;
@@ -74,13 +116,15 @@ function drawMap() {
     if (o.t === 'town') {
       c.fillStyle = o.owner >= 0 ? pcol(o.owner) : '#ddd'; c.fillRect(X - 26, Y - 30, 52, 8);
       c.font = '44px serif'; c.fillText('🏢', X - 6, Y + 2); c.font = '24px serif'; c.fillText(FACTIONS[o.fac].em, X + 16, Y + 12);
+      if (o.dist) mapTag(c, o.name, X, Y + 30, true);
       continue;
     }
     if (o.t === 'mine' || o.t === 'town') { c.fillStyle = o.owner >= 0 ? pcol(o.owner) : '#eee'; c.fillRect(X + 8, Y - 22, 12, 9); c.fillStyle = '#222'; c.fillRect(X + 7, Y - 22, 2, 22); }
     let em = '?';
-    if (o.t === 'mine') em = MINE[o.kind].em; else if (o.t === 'pile') em = RES_ICON[o.res]; else if (o.t === 'chest') em = '📦';
+    if (o.nm && seen(o.x, o.y)) mapTag(c, o.lb || o.nm.split(':')[0], X, Y + 25);
+    if (o.t === 'mine') em = mineOf(o).em; else if (o.t === 'pile') em = RES_ICON[o.res]; else if (o.t === 'chest') em = o.em || '📦';
     else if (o.t === 'art') { em = ARTS[o.art].em; c.fillStyle = `rgba(255,220,60,${0.25 + 0.15 * Math.sin(now / 300)})`; c.beginPath(); c.arc(X, Y, 20, 0, 7); c.fill(); }
-    else if (o.t === 'bonus') em = BONUS[o.kind].em;
+    else if (o.t === 'bonus') em = bonusOf(o).em;
     else if (o.t === 'mob') { em = UNITS[o.army.find(Boolean).u].em; c.fillStyle = 'rgba(200,30,30,.35)'; c.beginPath(); c.arc(X, Y, 21, 0, 7); c.fill(); if (drawSprite(c, o.army.find(Boolean).u, X, Y - 1, o.boss ? 48 : 40, o.id)) continue; }
     c.font = (o.t === 'mob' && o.boss ? 46 : 32) + 'px serif'; c.fillText(em, X, Y + 2);
   }
