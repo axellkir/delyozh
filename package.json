@@ -6,7 +6,7 @@
   "type": "module",
   "scripts": {
     "start": "node serve.mjs",
-    "check": "for f in js/*.js tests/bot.js; do node --check \"$f\" || exit 1; done",
+    "check": "for f in js/*.js tests/bot.js; do node --check \"$f\" || exit 1; done && node scripts/no-emoji.mjs",
     "build": "node scripts/build.mjs",
     "test": "node tests/run.mjs",
     "test:dist": "npm run build && TEST_ROOT=dist node tests/run.mjs && TEST_ROOT=dist node tests/online.mjs",

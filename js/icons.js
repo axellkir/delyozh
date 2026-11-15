@@ -68,6 +68,37 @@ const ICONS = {
   o_barrel: ['....rrrrrrrr', '...rrrrrrrrrr', '...yyyyyyyyyy', '...rrrrrrrrrr', '...rrrkkrrrrr', '...rrrrrrrrrr', '...yyyyyyyyyy', '...rrrrrrrrrr', '....rrrrrrrr'],
   o_crate: ['..TTTTTTTTTTTT', '..TssssssssssT', '..TsTssssssTsT', '..TssTssssTssT', '..TsssTTTTsssT', '..TsssTTTTsssT', '..TssTssssTssT', '..TsTssssssTsT', '..TssssssssssT', '..TTTTTTTTTTTT'],
   o_fence: ['.d.d.d.d.d.d.d', 'd.d.d.d.d.d.d.d', '..gggggggggggg', '..gGggggggGggg', '..gggggggggggg', '..ggggGggggggG', '..gggggggggggg', '..gGgggggGgggg', '..gggggggggggg', '..GGGGGGGGGGGG'],
+  // ---- интерфейс ----
+  i_play: ['...n', '...nn', '...nnn', '...nnnn', '...nnnnn', '...nnnnnn', '...nnnnn', '...nnnn', '...nnn', '...nn', '...n'],
+  i_next: ['.D....D...DD', '.DD...DD..DD', '.DDD..DDD.DD', '.DDDD.DDDDDD', '.DDD..DDD.DD', '.DD...DD..DD', '.D....D...DD'],
+  i_wait: ['..TTTTTTTTT', '...wsssssw', '....wsssw', '.....wsw', '......w', '.....w.w', '....w.s.w', '...wsssssw', '..TTTTTTTTT'],
+  i_bot: ['......r', '......d', '..gggggggggg', '..gccggggccg', '..gccggggccg', '..gggggggggg', '..ggDDDDDDgg', '..gggggggggg', '...d......d'],
+  i_human: ['.....tttt', '....tttttt', '....tttttt', '.....tttt', '......tt', '...bbbbbbbb', '..bbbbbbbbbb', '..bbbbbbbbbb'],
+  i_x: ['..r......r', '..rr....rr', '...rr..rr', '....rrrr', '.....rr', '....rrrr', '...rr..rr', '..rr....rr', '..r......r'],
+  i_dice: ['..wwwwwwwww', '..wDwwwwwDw', '..wwwwwwwww', '..wwwwDwwww', '..wwwwwwwww', '..wDwwwwwDw', '..wwwwwwwww'],
+  i_save: ['..bbbbbbbbbb', '..bwwwwwwDbb', '..bwwwwwwDbb', '..bbbbbbbbbb', '..bbbbbbbbbb', '..bbggggggbb', '..bbgDDgggbb', '..bbggggggbb'],
+  i_map: ['.ssss.ssss.sss', '.sbss.snns.srs', '.sbbs.snns.sss', '.ssbs.ssss.sDs', '.sssb.srss.sDs', '.ssss.ssss.sss'],
+  i_ring: ['....gggggg', '..gg......gg', '.g...rrrr...g', '.g..r....r..g', '.g..r.yy.r..g', '.g..r....r..g', '.g...rrrr...g', '..gg......gg', '....gggggg'],
+  i_net: ['....bbbbbb', '..bbnnbbbbbb', '.bbnnnnbbnbbb', '.bbbnnbbnnnbb', '.bbbbbbbnnbbb', '.bbnbbbbbnbbb', '..bbnnbbbbbb', '....bbbbbb'],
+  i_door: ['...TTTTTTTT', '...TuuuuuuT', '...TuuuuuuT', '...TuuuuuuT', '...TuuuuyuT', '...TuuuuuuT', '...TuuuuuuT', '...TTTTTTTT'],
+  i_star: ['.......y', '......yyy', '......yyy', '.yyyyyyyyyyyyy', '..yyyyyyyyyyy', '...yyyyyyyyy', '....yyyyyyy', '....yyy.yyy', '...yyy...yyy', '...y.......y'],
+  i_skull: ['....wwwwww', '...wwwwwwww', '...wDDwwDDw', '...wDDwwDDw', '...wwwDDwww', '....wwwwww', '....wDwDww', '....wwwwww'],
+  i_news: ['..wwwwwwwwwww', '..wDDDDDDDDDw', '..wwwwwwwwwww', '..wDDDwgggggw', '..wDDDwwwwwww', '..wDDDwgggggw', '..wwwwwwwwwww', '..wgggggggggw', '..wwwwwwwwwww'],
+  i_warn: ['.......y', '......yyy', '......yDy', '.....yyDyy', '.....yyDyy', '....yyyDyyy', '....yyyyyyy', '...yyyyDyyyy', '...yyyyyyyyy'],
+  i_flag: ['...d', '...drrrrrrr', '...drrrrrrr', '...drrrrrrr', '...drrrrrrr', '...d', '...d', '...d', '..ddd'],
+  i_cup: ['..yyyyyyyyyy', '.y.yyyyyyyy.y', '.y.yyyyyyyy.y', '..yyyyyyyyyy', '...yyyyyyyy', '....yyyyyy', '......yy', '......yy', '....YYYYYY'],
+  i_ok: ['...........n', '..........nn', '.........nn', '..n.....nn', '..nn...nn', '...nn.nn', '....nnn', '.....n'],
+  i_meet: ['....y', '...yy', '..yyyyyyyyyy', '...yy', '....y.....y', '..........yy', '..yyyyyyyyyy', '..........yy', '..........y'],
+  i_boom: ['......y', '..y...yy...y', '...yy.yy.yy', '....yyoyyy', '.yyyyoroyyyy', '....yyoyyy', '...yy.yy.yy', '..y...yy...y', '......y'],
+  // ---- понты ----
+  s_naezd: ['...tttttttt', '..tttttttttt', '..tutututttt', '..tttttttttt', '..ttttttttt', '...ttttttt', '....rrrrr', '....rrrrr'],
+  s_krysha: ['......rr', '.....rrrr', '....rrrrrr', '...rrrrrrrr', '..rrrrrrrrrr', '...ssssssss', '...sscssTss', '...sssssTss'],
+  s_voda: ['.....bb', '.....ww', '....wwww', '...wccccw', '...wccccw', '...wcwccw', '...wccccw', '...wccccw', '...wwwwww'],
+  s_strelka: ['......yyyy', '.....yyyy', '....yyyy', '...yyyyyyy', '.....yyyy', '....yyyy', '...yyy', '..yy', '..y'],
+  // ---- сложность ботов ----
+  d_1: ['......r', '......d', '..gggggggggg', '..gccggggccg', '..gccggggccg', '..gggggggggg', '..ggDDDDDDgg', '..gggggggggg', '...d......d'],
+  d_0: ['....yyyy', '...yyyyyy', '...yDyyyyo', '...yyyyyy', '..yyyyyyyy', '..yyyyyyyy', '...yyyyyy', '....o..o'],
+  d_2: ['..r......r', '..rr....rr', '..rrrrrrrr', '..ryyrryyr', '..rrrrrrrr', '..rDrDrDrr', '..rrrrrrrr'],
   // ---- характеристики ----
   i_att: ['............gg', '...........gwg', '..........gwg', '.........gwg', '........gwg', '.......gwg', '..T...gwg', '..TT.gwg', '...TTTg', '....TT', '...T.TT', '..T...T'],
   i_def: ['..bbbbbbbbbb', '..bwwwwbbbbb', '..bwbbbbbbbb', '..bwbbbbbbbb', '..bbbbbbbbbb', '...bbbbbbbb', '...bbbbbbbb', '....bbbbbb', '.....bbbb', '......bb'],
@@ -96,18 +127,27 @@ const HERO_LOOKS = {
 
 function buildIcons() {
   const big = c => { const b = document.createElement('canvas'); b.width = b.height = 64; const x = b.getContext('2d'); x.imageSmoothingEnabled = false; x.drawImage(c, 0, 0, 64, 64); return b.toDataURL(); };
+  // для HTML значок обрезается по рисунку и растягивается на весь квадрат — иначе мелкие значки теряются в строке текста
+  const trim = c => {
+    const d = c.getContext('2d').getImageData(0, 0, 16, 16).data; let x0 = 16, y0 = 16, x1 = -1, y1 = -1;
+    for (let y = 0; y < 16; y++) for (let x = 0; x < 16; x++) if (d[(y * 16 + x) * 4 + 3]) { x0 = Math.min(x0, x); x1 = Math.max(x1, x); y0 = Math.min(y0, y); y1 = Math.max(y1, y); }
+    if (x1 < 0) return big(c);
+    const w = x1 - x0 + 1, h = y1 - y0 + 1, k = Math.floor(64 / Math.max(w, h)), b = document.createElement('canvas'); b.width = b.height = 64;
+    const x = b.getContext('2d'); x.imageSmoothingEnabled = false; x.drawImage(c, x0, y0, w, h, Math.floor((64 - w * k) / 2), Math.floor((64 - h * k) / 2), w * k, h * k);
+    return b.toDataURL();
+  };
   for (const id in ICONS) {
     const rows = ICONS[id], g = sprGrid(), top = Math.max(0, 15 - rows.length); // прижать к низу, оставив строку под контур
     rows.forEach((row, y) => { for (let x = 0; x < Math.min(16, row.length); x++) { const col = ICON_PAL[row[x]]; if (col && top + y < 16) g[(top + y) * 16 + x] = col; } });
     const c = sprCanvas(sprOutline(g));
-    SPRITES[id] = { frames: [c, c], url: big(c) };
+    SPRITES[id] = { frames: [c, c], url: trim(c) };
   }
   for (const name in HERO_LOOKS) {
     const frames = [0, 1].map(b => sprCanvas(sprOutline(sprHuman(HERO_LOOKS[name], b))));
     SPRITES['h_' + name] = { frames, url: big(frames[0]) };
   }
 }
-try { buildIcons(); } catch (e) { console.warn('Значки не собрались, рисуем эмодзи', e); }
+try { buildIcons(); } catch (e) { console.warn('Значки не собрались', e); }
 
 // какой значок у объекта карты
 function sprOf(o) {
@@ -119,7 +159,9 @@ function sprOf(o) {
   if (o.t === 'bonus') return o.sp || 'b_' + o.kind;
   return '';
 }
-// значок для HTML: картинка, если есть, иначе запасной текст (эмодзи)
-function ico(id, size, fallback) { const s = SPRITES[id]; return s ? `<img class="spr" src="${s.url}" width="${size}" height="${size}" alt="">` : fallback || ''; }
-const resIco = (r, size) => ico('r_' + r, size || 18, RES_ICON[r]);
-const heroIco = (h, size) => ico('h_' + h.name, size, h.em);
+// значок для HTML
+function ico(id, size) { const s = SPRITES[id]; return s ? `<img class="spr" src="${s.url}" width="${size}" height="${size}" alt="">` : ''; }
+const resIco = (r, size) => ico('r_' + r, size || 18);
+const heroIco = (h, size) => ico('h_' + h.name, size);
+// значок страницы — из тех же спрайтов
+try { const l = document.querySelector('link[rel=icon]'); if (l && SPRITES.r_gold) l.href = SPRITES.r_gold.url; } catch (e) { /* не страшно */ }

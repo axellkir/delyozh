@@ -150,10 +150,10 @@ function netBox() {
   const el = $('netBox');
   if (!NET.on || !NET.room || !G) { el.hidden = true; return; }
   const R = NET.room, cur = G.players[G.cur], seat = R.seats[cur.seat];
-  const rows = G.players.map(p => { const s = R.seats[p.seat]; return `<span style="color:${p.col};opacity:${p.alive ? 1 : 0.4}">${p.kind === 'bot' ? '🤖' : s && s.online ? '🟢' : '⚪'} ${esc(p.name)}${s && s.owner === 'me' ? ' (вы)' : ''}</span>`; }).join(' · ');
+  const rows = G.players.map(p => { const s = R.seats[p.seat]; return `<span style="color:${p.col};opacity:${p.alive ? 1 : 0.4}">${p.kind === 'bot' ? ico('i_bot', 14) : `<i class="dot ${s && s.online ? 'on' : ''}"></i>`} ${esc(p.name)}${s && s.owner === 'me' ? ' (вы)' : ''}</span>`; }).join(' · ');
   const stuck = R.host && !G.over && cur.kind !== 'bot' && seat && seat.owner !== 'me' && !seat.online;
   el.hidden = false;
-  el.innerHTML = `<h3>🌐 Комната ${R.code}</h3><small>${rows}</small>${stuck ? `<button class="sec" id="netTake" style="margin-top:6px;width:100%">Игрок не в сети — забрать его ход</button>` : ''}`;
+  el.innerHTML = `<h3>Комната ${R.code}</h3><small>${rows}</small>${stuck ? `<button class="sec" id="netTake" style="margin-top:6px;width:100%">Игрок не в сети — забрать его ход</button>` : ''}`;
   if (stuck) $('netTake').onclick = () => netOp('takeover', { seat: cur.seat });
 }
 async function netList() { try { NET.list = (await netReq('GET', 'api/rooms')).rooms; } catch (e) { NET.list = null; } if (!NET.on && !$('menu').hidden) renderMenu(); }

@@ -8,7 +8,7 @@ const AI = { sims: 0 };
 // что бот отвечает на окна игры вместо человека
 function botAnswer(pid, title, buttons) {
   if (title.includes('уровень')) { const r = Math.random(); return r < 0.45 ? 0 : r < 0.8 ? 1 : 2; }
-  if (buttons[0].startsWith('Забрать')) return G.players[pid].res.gold < 4000 ? 0 : 1;
+  if (title.includes('Общак') || buttons[0].startsWith('Забрать')) return G.players[pid].res.gold < 4000 ? 0 : 1;
   return 0;
 }
 
