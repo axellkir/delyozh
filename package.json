@@ -9,9 +9,9 @@
     "check": "for f in js/*.js tests/bot.js; do node --check \"$f\" || exit 1; done && node scripts/no-emoji.mjs",
     "build": "node scripts/build.mjs",
     "test": "node tests/run.mjs",
-    "test:dist": "npm run build && TEST_ROOT=dist node tests/run.mjs && TEST_ROOT=dist node tests/online.mjs",
+    "test:dist": "npm run build && TEST_ROOT=dist node tests/run.mjs && TEST_ROOT=dist node tests/online.mjs && TEST_ROOT=dist TEST_TURNS=seq node tests/online.mjs",
     "release": "npm version ${BUMP:-patch} -m 'Версия %s' && git push --follow-tags",
-    "test:online": "node tests/online.mjs"
+    "test:online": "node tests/online.mjs && TEST_TURNS=seq node tests/online.mjs"
   },
   "devDependencies": {
     "puppeteer-core": "^24.0.0"

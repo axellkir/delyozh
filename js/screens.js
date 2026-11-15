@@ -213,10 +213,10 @@ function renderNetBar(R) {
   const el = $('netBar');
   if (R) {
     el.innerHTML = `<b>${ico('i_net', 20)} Комната <span class="code">${R.code}</span></b> <button class="sec" id="netCopy">Скопировать ссылку</button>
-      ${R.host ? `<label><input type="checkbox" id="netPub" ${R.public ? 'checked' : ''}> видна в списке открытых</label>` : `<small>хозяин: ${esc(R.hostName)}</small>`}
+      ${R.host ? `<label><input type="checkbox" id="netPub" ${R.public ? 'checked' : ''}> видна в списке открытых</label><label title="Пока бригады далеко друг от друга, день играют все сразу; сблизились — по очереди"><input type="checkbox" id="netSim" ${R.turns === 'sim' ? 'checked' : ''}> ходить одновременно, пока далеко</label>` : `<small>хозяин: ${esc(R.hostName)} · ходы: ${R.turns === 'sim' ? 'одновременно, пока бригады далеко' : 'по очереди'}</small>`}
       <button class="sec" id="netOut">Выйти из комнаты</button>`;
     $('netCopy').onclick = () => { const link = location.origin + location.pathname + '?room=' + R.code; (navigator.clipboard ? navigator.clipboard.writeText(link) : Promise.reject()).then(() => toast('Ссылка скопирована', true), () => prompt('Ссылка на комнату:', link)); };
-    if (R.host) $('netPub').onchange = e => netOp('public', { public: e.target.checked });
+    if (R.host) { $('netPub').onchange = e => netOp('public', { public: e.target.checked }); $('netSim').onchange = e => netOp('turns', { turns: e.target.checked ? 'sim' : 'seq' }); }
     $('netOut').onclick = () => netLeave();
     return;
   }

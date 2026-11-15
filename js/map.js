@@ -162,7 +162,9 @@ function makeHero(owner, fac, x, y, idx) {
   const all = FACTIONS[fac].heroes, used = new Set(G.heroes.filter(h => h.fac === fac).map(h => h.name));
   const pool = all.filter(c => !used.has(c.name));
   const c = all[idx] || (pool.length ? pick(pool) : pick(all));
-  const h = { id: G.nextId++, owner, fac, name: c.name, spec: c.spec, x, y, mp: 90, att: 1, def: 1, pow: 1, mana: 15, lvl: 1, xp: 0, arts: [], army: [null, null, null, null, null], dest: null };
+  // в день одновременных ходов героев нанимают сразу на нескольких компьютерах — номера не должны совпасть
+  const id = NET.on && G.sim ? 100000 + G.day * 1000 + owner * 50 + myHeroes(owner).length : G.nextId++;
+  const h = { id, owner, fac, name: c.name, spec: c.spec, x, y, mp: 90, att: 1, def: 1, pow: 1, mana: 15, lvl: 1, xp: 0, arts: [], army: [null, null, null, null, null], dest: null };
   h.mp = heroMaxMp(h);
   return h;
 }
