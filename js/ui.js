@@ -81,7 +81,7 @@ function drawMap() {
     if (o.t === 'mine') em = MINE[o.kind].em; else if (o.t === 'pile') em = RES_ICON[o.res]; else if (o.t === 'chest') em = '📦';
     else if (o.t === 'art') { em = ARTS[o.art].em; c.fillStyle = `rgba(255,220,60,${0.25 + 0.15 * Math.sin(now / 300)})`; c.beginPath(); c.arc(X, Y, 20, 0, 7); c.fill(); }
     else if (o.t === 'bonus') em = BONUS[o.kind].em;
-    else if (o.t === 'mob') { em = UNITS[o.army.find(Boolean).u].em; c.fillStyle = 'rgba(200,30,30,.35)'; c.beginPath(); c.arc(X, Y, 21, 0, 7); c.fill(); }
+    else if (o.t === 'mob') { em = UNITS[o.army.find(Boolean).u].em; c.fillStyle = 'rgba(200,30,30,.35)'; c.beginPath(); c.arc(X, Y, 21, 0, 7); c.fill(); if (drawSprite(c, o.army.find(Boolean).u, X, Y - 1, o.boss ? 48 : 40, o.id)) continue; }
     c.font = (o.t === 'mob' && o.boss ? 46 : 32) + 'px serif'; c.fillText(em, X, Y + 2);
   }
   // путь
@@ -148,7 +148,7 @@ function drawBattle() {
     if (st === s) { c.strokeStyle = '#ffd21a'; c.lineWidth = 4; c.beginPath(); c.arc(X, Y, cs * 0.44 + Math.sin(now / 150) * 2, 0, 7); c.stroke(); }
     c.fillStyle = own >= 0 ? pcol(own) : '#8a8a8a'; c.globalAlpha = 0.55; c.beginPath(); c.arc(X, Y, cs * 0.4, 0, 7); c.fill(); c.globalAlpha = 1;
     c.save(); c.translate(X, Y); if (st.side === 1) c.scale(-1, 1);
-    c.font = Math.round(cs * 0.58) + 'px serif'; c.fillText(UNITS[st.u].em, 0, 2); c.restore();
+    if (!drawSprite(c, st.u, 0, -cs * 0.04, Math.floor(cs * 0.8 / 16) * 16 || 16, st.id)) { c.font = Math.round(cs * 0.58) + 'px serif'; c.fillText(UNITS[st.u].em, 0, 2); } c.restore();
     if (st.flash > 0) { c.fillStyle = `rgba(255,40,40,${st.flash * 0.5})`; c.beginPath(); c.arc(X, Y, cs * 0.4, 0, 7); c.fill(); st.flash = Math.max(0, st.flash - 0.05); }
     if (st.defd) { c.font = Math.round(cs * 0.25) + 'px serif'; c.fillText('🛡️', X - cs * 0.32, Y - cs * 0.3); }
     const label = String(st.n); c.font = `bold ${Math.round(cs * 0.22)}px sans-serif`;
@@ -162,7 +162,7 @@ function drawBattle() {
   B.fx = B.fx.filter(f => f.t < (f.shot ? 0.3 : 1.2));
   // очередь ходов
   const q = [s, ...B.queue.filter(alive)].filter(Boolean).slice(0, 10);
-  q.forEach((st, i) => { const X = 20 + i * 46, Y = VH - 120; c.fillStyle = B.sides[st.side].owner >= 0 ? pcol(B.sides[st.side].owner) : '#777'; c.fillRect(X, Y, 40, 40); c.font = '26px serif'; c.fillStyle = '#000'; c.fillText(UNITS[st.u].em, X + 20, Y + 21); if (i === 0) { c.strokeStyle = '#fff'; c.lineWidth = 3; c.strokeRect(X, Y, 40, 40); } });
+  q.forEach((st, i) => { const X = 20 + i * 46, Y = VH - 120; c.fillStyle = B.sides[st.side].owner >= 0 ? pcol(B.sides[st.side].owner) : '#777'; c.fillRect(X, Y, 40, 40); if (!drawSprite(c, st.u, X + 20, Y + 20, 32, 0)) { c.font = '26px serif'; c.fillStyle = '#000'; c.fillText(UNITS[st.u].em, X + 20, Y + 21); } if (i === 0) { c.strokeStyle = '#fff'; c.lineWidth = 3; c.strokeRect(X, Y, 40, 40); } });
 }
 
 // ---------- ввод ----------
@@ -239,7 +239,7 @@ function refresh() {
       <div class="stats"><div>⚔️${s.att}<small>атака</small></div><div>🛡️${s.def}<small>защита</small></div><div>😎${s.pow}<small>понты</small></div><div>💧${h.mana}<small>из ${maxMana(h)}</small></div></div>
       <small>Ход: ${Math.floor(h.mp)} / ${heroMaxMp(h)}</small><div class="bar"><i style="width:${100 * h.mp / heroMaxMp(h)}%;background:#6f6"></i></div>
       <small>Опыт: ${h.xp} / ${nx}</small><div class="bar"><i style="width:${100 * (h.xp - px) / (nx - px)}%;background:#fc3"></i></div>
-      <div class="slots">${h.army.map(a => `<div class="slot" title="${a ? UNITS[a.u].name : ''}">${a ? UNITS[a.u].em + `<b>${a.n}</b>` : ''}</div>`).join('')}</div>
+      <div class="slots">${h.army.map(a => `<div class="slot" title="${a ? UNITS[a.u].name : ''}">${a ? unitIcon(a.u, 40) + `<b>${a.n}</b>` : ''}</div>`).join('')}</div>
       <div class="arts">${h.arts.map(a => `<span title="${ARTS[a].name}: ${ARTS[a].desc}">${ARTS[a].em}</span>`).join('') || '<small>Артефактов нет</small>'}</div>
       ${G.heroes.filter(o => o.owner === h.owner && o !== h && Math.max(Math.abs(o.x - h.x), Math.abs(o.y - h.y)) <= 1).map(o => `<button class="sec" data-ex="${o.id}" style="margin-top:6px">🤝 Обмен с ${o.name}</button>`).join('')}`;
     document.querySelectorAll('[data-ex]').forEach(el => el.onclick = () => { if (!locked()) openExchange(h, heroById(+el.dataset.ex)); });
