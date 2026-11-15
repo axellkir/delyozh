@@ -52,12 +52,12 @@ function renderTown(t, hero) {
   };
   const rcard = (u, i) => {
     const U = UNITS[u], ok = t.built['dw' + (i + 1)], n = t.avail[u] || 0, mx = maxRecruit(t, u);
-    return `<div class="rcard ${ok ? '' : 'lock'}"><div class="em">${unitIcon(u, 64)}</div><b>${U.name}</b><br>⚔️${U.att} 🛡️${U.def} ❤️${U.hp} 💨${U.spd}<br>урон ${U.dmg[0]}–${U.dmg[1]}${U.shots ? ' · стрелок' : ''}${U.fly ? ' · прыгает' : ''}<br><i>${U.note || '&nbsp;'}</i><br>
+    return `<div class="rcard ${ok ? '' : 'lock'}"><div class="em">${unitIcon(u, 64)}</div><b>${U.name}</b><br>${ico('i_att', 16, '⚔️')}${U.att} ${ico('i_def', 16, '🛡️')}${U.def} ${ico('i_hp', 16, '❤️')}${U.hp} ${ico('i_spd', 16, '💨')}${U.spd}<br>урон ${U.dmg[0]}–${U.dmg[1]}${U.shots ? ' · стрелок' : ''}${U.fly ? ' · прыгает' : ''}<br><i>${U.note || '&nbsp;'}</i><br>
       цена ${costText(U.cost)}<br>доступно: <b>${ok ? n : '—'}</b><br>${ok ? `<div class="btns" style="justify-content:center;margin-top:4px"><button data-r="${u}" data-n="1" ${mx ? '' : 'disabled'}>+1</button><button data-r="${u}" data-n="${mx}" ${mx ? '' : 'disabled'}>Все (${mx})</button></div>` : ''}</div>`;
   };
   const market = t.built.market ? `<h3>Барахолка</h3><div class="btns">${['fuel', 'brick'].map(r => `<button data-buy="${r}">Купить ${resIco(r)} за ${TRADE_BUY}${resIco('gold', 16)}</button><button class="sec" data-sell="${r}">Продать ${resIco(r)} за ${TRADE_SELL}${resIco('gold', 16)}</button>`).join('')}</div>` : '';
   $('townBox').innerHTML = `
-    <div style="display:flex;align-items:center;gap:14px">${ico('t_' + t.fac, 64, F.em)}<div><div class="fun" style="font-size:30px;color:${p.col}">${t.name}</div><small>${F.name} · ${F.desc}</small></div>
+    <div style="display:flex;align-items:center;gap:14px">${ico('t_' + t.fac, 64, F.em)}<div><div class="fun" style="font-size:16px;color:${p.col}">${t.name}</div><small>${F.name} · ${F.desc}</small></div>
       <div style="margin-left:auto;font-size:18px;font-weight:bold">${RES.map(r => `${resIco(r)} ${p.res[r]}`).join(' &nbsp; ')}</div><button id="tClose">Выйти (Esc)</button></div>
     <h3 style="margin-top:12px">Стройка — одно здание в день</h3><div class="tgrid">${BUILDINGS.map(bcard).join('')}</div>
     <h3>Найм — новые бойцы приходят по понедельникам</h3><div class="rgrid">${units.map(rcard).join('')}</div>
@@ -87,7 +87,7 @@ function openExchange(a, b) {
   return new Promise(res => {
     SLOT = null; $('exch').hidden = false;
     const R = () => {
-      $('exchBox').innerHTML = `<div class="fun" style="font-size:28px;color:var(--gold)">🤝 Встреча</div><div class="row">${armyRow(a.army, 'a', `${heroIco(a, 24)} ${a.name}`)}${armyRow(b.army, 'b', `${heroIco(b, 24)} ${b.name}`)}</div>
+      $('exchBox').innerHTML = `<div class="fun" style="font-size:16px;color:var(--gold)">Встреча</div><div class="row">${armyRow(a.army, 'a', `${heroIco(a, 24)} ${a.name}`)}${armyRow(b.army, 'b', `${heroIco(b, 24)} ${b.name}`)}</div>
         <div class="btns" style="margin-top:12px"><button id="xClose">Готово</button></div>`;
       bindSlots($('exchBox'), { a: { arr: a.army, hero: true }, b: { arr: b.army, hero: true } }, R);
       $('xClose').onclick = () => { $('exch').hidden = true; refresh(); res(); };
@@ -102,7 +102,7 @@ function refreshBattleUI() {
   if (!B || B.quick) return;
   const nm = sd => sd.hero ? `${heroIco(sd.hero, 24)} ${sd.hero.name}` : sd.owner >= 0 ? `гарнизон (${G.players[sd.owner].name})` : 'местные';
   const s = B.active, sd = s && B.sides[s.side];
-  $('bTop').innerHTML = `${B.title} · раунд ${B.round}<br><span style="font-size:16px"><span style="color:${B.sides[0].owner >= 0 ? pcol(B.sides[0].owner) : '#aaa'}">${nm(B.sides[0])}</span> ⚔️ <span style="color:${B.sides[1].owner >= 0 ? pcol(B.sides[1].owner) : '#aaa'}">${nm(B.sides[1])}</span>${s ? ` · ходят: ${UNITS[s.u].em} ${UNITS[s.u].name}` : ''}${B.spell ? ' · выберите цель для «' + B.spell.name + '»' : ''}</span>`;
+  $('bTop').innerHTML = `${B.title} · раунд ${B.round}<br><span style="font-size:10px"><span style="color:${B.sides[0].owner >= 0 ? pcol(B.sides[0].owner) : '#aaa'}">${nm(B.sides[0])}</span> ⚔️ <span style="color:${B.sides[1].owner >= 0 ? pcol(B.sides[1].owner) : '#aaa'}">${nm(B.sides[1])}</span>${s ? ` · ходят: ${UNITS[s.u].em} ${UNITS[s.u].name}` : ''}${B.spell ? ' · выберите цель для «' + B.spell.name + '»' : ''}</span>`;
   $('bLog').innerHTML = B.log.join('<br>');
   const human = s && !sd.auto;
   ['bWait', 'bDef', 'bAuto'].forEach(id => { $(id).disabled = !human; });
@@ -249,7 +249,7 @@ function showVictory(p) {
   BOTTING = false;
   const bot = p.kind === 'bot', title = bot ? `🤖 ${p.name} забирают Москву` : `🏆 ${p.name} забирают Москву!`;
   const text = bot ? `Людей в городе не осталось — всё поделили боты. День ${G.day}. Реванш?` : `Остальные бригады распались. День ${G.day}. ${FACTIONS[p.fac].em} ${FACTIONS[p.fac].name} — хозяева города.`;
-  ask(title, `<div class="fun" style="font-size:22px">${text}</div>`, ['В меню'], { pid: -1 })
+  ask(title, `<div style="font-size:18px">${text}</div>`, ['В меню'], { pid: -1 })
     .then(() => { if (NET.on) netLeave(); else { $('menu').hidden = false; renderMenu(); } });
 }
 addEventListener('keydown', e => { if (e.code === 'Escape' && !$('town').hidden) closeTown(); });
