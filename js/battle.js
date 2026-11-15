@@ -8,7 +8,7 @@ const OBST = ['🗑️', '🚗', '🛢️', '📦', '🚧'];
 function runBattle(cfg) {
   return new Promise(resolve => {
     // за сторону ходит ИИ, если это местные, бот или прикидка боя; понтами ИИ пользуется только у ботов не ниже обычного
-    const side = (c, i) => ({ i, hero: c.hero, owner: c.owner, fence: !!c.fence, st: c.hero ? heroStats(c.hero) : { att: 0, def: 0, pow: 0, spd: 0 }, castRound: 0, auto: c.owner < 0 || !!window.AUTOBATTLE || !!cfg.sim || isBot(c.owner), aiCast: !!c.hero && (cfg.sim ? true : isBot(c.owner) && DIFF[G.players[c.owner].diff].spells), src: c.army });
+    const side = (c, i) => ({ i, hero: c.hero, owner: c.owner, fence: !!c.fence, st: c.hero ? heroStats(c.hero) : { att: 0, def: 0, pow: 0, spd: 0 }, castRound: 0, auto: c.owner < 0 || !!window.AUTOBATTLE || !!cfg.sim || isBot(c.owner) || netRemote(c.owner), aiCast: !!c.hero && (cfg.sim ? true : isBot(c.owner) && DIFF[G.players[c.owner].diff].spells), src: c.army });
     const sides = [side(cfg.a, 0), side(cfg.d, 1)];
     // бой без людей не показываем: он считается мгновенно
     const quick = !!cfg.sim || (sides[0].auto && sides[1].auto);

@@ -1,0 +1,19 @@
+# /etc/systemd/system/delyozh-server.service — сервер комнат для игры по сети
+[Unit]
+Description=Delyozh room server
+After=network.target
+
+[Service]
+User=deploy
+Environment=PORT=8791 HOST=127.0.0.1 DATA_DIR=/var/lib/delyozh
+ExecStart=/usr/bin/node /var/www/delyozh/server/server.mjs
+Restart=on-failure
+RestartSec=3
+NoNewPrivileges=true
+ProtectSystem=strict
+ProtectHome=true
+PrivateTmp=true
+ReadWritePaths=/var/lib/delyozh
+
+[Install]
+WantedBy=multi-user.target

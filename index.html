@@ -69,6 +69,18 @@
   .seg span.on { border-color: var(--gold); background: #4a3a10; }
   .seg.wide span { flex: 1 1 0; min-width: 0; padding: 3px 2px; font-size: 12px; overflow: hidden; text-overflow: ellipsis; }
   .seg.heroes span { font-size: 20px; padding: 1px 0; }
+  #netBar { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; justify-content: center; max-width: 940px; margin: 6px 0 2px; padding: 8px 12px; border-radius: 12px; background: rgba(0,0,0,.28); font-size: 14px; }
+  #netBar input[type=text], #netBar input:not([type]) { font: inherit; padding: 5px 7px; border-radius: 6px; border: 0; }
+  #netBar button { padding: 5px 10px; }
+  #netBar .code { font-family: monospace; font-size: 20px; color: var(--gold); letter-spacing: 2px; }
+  #netRooms { flex-basis: 100%; display: flex; flex-wrap: wrap; gap: 6px; justify-content: center; }
+  #netRooms .room { padding: 4px 10px; border-radius: 8px; background: #3a2c42; cursor: pointer; border: 2px solid transparent; }
+  #netRooms .room:hover { border-color: var(--gold); }
+  .seg.ro span { cursor: default; opacity: .75; }
+  .seg.ro span:hover { background: #3a2c42; }
+  .seg.ro span.on:hover { background: #4a3a10; }
+  .pcard a { color: #0ff; }
+  .pcard button { padding: 4px 10px; font-size: 14px; }
   #lobbyNote { color: #c9bcd2; font-size: 14px; margin-bottom: 8px; min-height: 19px; }
   #town .box, #exch .box { max-width: 1100px; width: 92vw; max-height: 92vh; overflow: auto; }
   .tgrid { display: grid; grid-template-columns: repeat(5, 1fr); gap: 8px; margin: 8px 0 14px; }
@@ -107,6 +119,7 @@
     <button id="endBtn">⏭ Конец хода (Enter)</button>
   </div>
   <div style="padding:0"><canvas id="mini" width="176" height="176"></canvas></div>
+  <div id="netBox" hidden></div>
   <div id="help">Клик — путь, второй клик — идти. ПКМ по своему герою — встреча. Стрелки/WASD — карта, H — след. герой, M — музыка. <a href="#" id="menuLink" style="color:#0ff">Меню</a> · <a href="#" id="guideLink" style="color:#0ff">Карта PNG</a></div>
 </div>
 
@@ -133,6 +146,7 @@
 <div id="menu" class="ov">
   <h1 class="fun st">ДЕЛЁЖ</h1>
   <div class="sub fun st">Москва, 90-е. До шести бригад, один город. Ходим по очереди.</div>
+  <div id="netBar"></div>
   <div class="pset" id="pset"></div>
   <div class="seg" id="mapSeg" style="margin-bottom:4px"></div>
   <div id="mapNote" style="color:#c9bcd2;font-size:13px;margin-bottom:6px;max-width:760px;text-align:center"></div>
@@ -150,6 +164,7 @@
 <script src="js/map.js"></script>
 <script src="js/moscow.js"></script>
 <script src="js/game.js"></script>
+<script src="js/net.js"></script>
 <script src="js/battle.js"></script>
 <script src="js/ai.js"></script>
 <script src="js/sprites.js"></script>

@@ -1,0 +1,11 @@
+# /etc/systemd/system/delyozh-restart.path — после каждой выкладки меняется version.json, и сервер комнат перезапускается сам.
+# Так ключу выкладки не нужны права на systemctl.
+[Unit]
+Description=Restart Delyozh room server after deploy
+
+[Path]
+PathChanged=/var/www/delyozh/version.json
+Unit=delyozh-restart.service
+
+[Install]
+WantedBy=multi-user.target

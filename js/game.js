@@ -10,7 +10,7 @@ const humans = () => G.players.filter(p => p.kind !== 'bot');
 const mineOf = o => ({ ...MINE[o.kind], ...(o.nm && { name: o.nm }), ...(o.em && { em: o.em }), ...(o.amt && { amt: o.amt }) });
 const bonusOf = o => ({ ...BONUS[o.kind], ...(o.nm && { name: o.nm }), ...(o.em && { em: o.em }), ...(o.txt && { text: o.txt }) });
 const pcol = pid => (G.players[pid] && G.players[pid].col) || PCOL[pid] || '#aaa';
-const viewP = () => G.players[G.view == null ? G.cur : G.view]; // чьими глазами показываем карту
+const viewP = () => G.players[NET.on ? netViewId() : G.view == null ? G.cur : G.view]; // чьими глазами показываем карту
 // сообщение живому игроку, которое он увидит в начале своего хода
 function notify(pid, text) { const p = G.players[pid]; if (!p || p.kind === 'bot' || !p.alive) return; (p.inbox = p.inbox || []).push(`день ${G.day}: ${text}`); }
 const botLine = (pid, kind) => (isBot(pid) ? ` <i>«${pick(BOT_LINES[kind])}»</i>` : '');
@@ -65,6 +65,8 @@ async function beginTurn() {
     BOTTING = false;
     if (!G.over) await endTurn(); return;
   }
+  // по сети: следующий игрок сидит за другим компьютером — отдаём ему партию и право хода
+  if (netRemote(p.id)) { BOTTING = false; refresh(); netHandOver(); return; }
   if (bot) {
     refresh();
     try { await sleep(350); await botTurn(p); }
@@ -73,8 +75,13 @@ async function beginTurn() {
     if (!G.over) await endTurn(); else refresh();
     return;
   }
-  G.view = p.id; refresh();
-  if (humans().filter(x => x.alive).length > 1) await curtain(p); else { audioInit(); toast(`Ваш ход · неделя ${weekNo()}, день ${dayOfWeek()}`); }
+  await turnIntro(p);
+}
+// Начало хода человека за этим компьютером: шторка, новости, выбор героя
+async function turnIntro(p) {
+  BOTTING = false; UI.sel = null; UI.plan = null;
+  G.view = p.id; NET.view = p.id; refresh();
+  if (humans().filter(x => x.alive && !netRemote(x.id)).length > 1) await curtain(p); else { audioInit(); toast(`Ваш ход · неделя ${weekNo()}, день ${dayOfWeek()}`); }
   if (p.inbox && p.inbox.length) { const news = p.inbox.splice(0); await ask('📰 Пока вас не было', news.join('<br>'), ['Понятно']); }
   if (p.noTown) await ask('⚠️ Нет своего города!', `Осталось дней, чтобы захватить любой город: ${7 - p.noTown}. Иначе бригада распадётся.`, ['Понял']);
   if (G.week && p.weekSeen !== weekNo()) {
@@ -93,8 +100,8 @@ async function endTurn() {
     n = (n + 1) % G.players.length;
     if (n === 0) { G.day++; G.firstDone = true; if (dayOfWeek() === 1) newWeek(); }
   } while (!G.players[n].alive);
-  G.cur = n;
-  saveGame();
+  G.cur = n; G.turnNo = (G.turnNo || 0) + 1;
+  if (!NET.on) saveGame();
   BUSY = false;
   await beginTurn();
 }
@@ -332,7 +339,9 @@ function checkWin() {
   if (lastOne || noHumans) {
     const power = p => myTowns(p.id).length * 1e6 + myHeroes(p.id).reduce((s, h) => s + armyValue(h.army), 0);
     const win = alive.slice().sort((a, b) => power(b) - power(a))[0];
-    G.over = true; localStorage.removeItem(SAVE_KEY); setTimeout(() => showVictory(win), 400);
+    G.over = true; G.winner = win.id;
+    if (NET.on) { NET.overShown = true; netDirty(); } else localStorage.removeItem(SAVE_KEY);
+    setTimeout(() => showVictory(win), 400);
   }
 }
 
