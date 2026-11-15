@@ -169,7 +169,7 @@ function drawBattle() {
   for (let x = 0; x <= BW; x++) { c.beginPath(); c.moveTo(ox + x * cs, oy); c.lineTo(ox + x * cs, oy + cs * BH); c.stroke(); }
   for (let y = 0; y <= BH; y++) { c.beginPath(); c.moveTo(ox, oy + y * cs); c.lineTo(ox + cs * BW, oy + y * cs); c.stroke(); }
   c.textAlign = 'center'; c.textBaseline = 'middle';
-  const s = B.active, human = s && B.wait && !B.busy && humanSide(s);
+  const s = B.active, human = s && B.wait && !B.busy && humanSide(s) && !(B.sides[s.side].remote && !B.mirror);
   if (human) {
     const R = reach(s);
     c.fillStyle = 'rgba(120,255,120,.18)';

@@ -7,12 +7,13 @@ const OBST_SPR = ['o_bin', 'champ', 'o_crate', 'o_crate', 'o_barrier'];
 
 function runBattle(cfg) {
   return new Promise(resolve => {
-    // за сторону ходит ИИ, если это местные, бот или прикидка боя; понтами ИИ пользуется только у ботов не ниже обычного
-    const side = (c, i) => ({ i, hero: c.hero, owner: c.owner, fence: !!c.fence, st: c.hero ? heroStats(c.hero) : { att: 0, def: 0, pow: 0, spd: 0 }, castRound: 0, auto: c.owner < 0 || !!window.AUTOBATTLE || !!cfg.sim || isBot(c.owner) || netRemote(c.owner), aiCast: !!c.hero && (cfg.sim ? true : isBot(c.owner) && DIFF[G.players[c.owner].diff].spells), src: c.army });
+    // remote — игрок за другим компьютером и в сети: бой покажется у него, своими отрядами он командует сам (живая защита).
+    // За сторону ходит ИИ, если это местные, бот или прикидка боя; понтами ИИ пользуется только у ботов не ниже обычного
+    const side = (c, i) => ({ i, hero: c.hero, owner: c.owner, fence: !!c.fence, st: c.hero ? heroStats(c.hero) : { att: 0, def: 0, pow: 0, spd: 0 }, castRound: 0, remote: !cfg.sim && netRemote(c.owner) && netSeatOnline(c.owner), auto: c.owner < 0 || !!cfg.sim || isBot(c.owner) || (netRemote(c.owner) ? !netSeatOnline(c.owner) : !!window.AUTOBATTLE), aiCast: !!c.hero && (cfg.sim ? true : isBot(c.owner) && DIFF[G.players[c.owner].diff].spells), src: c.army });
     const sides = [side(cfg.a, 0), side(cfg.d, 1)];
     // бой без людей не показываем: он считается мгновенно
     const quick = !!cfg.sim || (sides[0].auto && sides[1].auto);
-    B = { quick, sim: !!cfg.sim, speed0: SPEED, title: cfg.title, sides, stacks: [], obst: new Set(), round: 0, queue: [], active: null, log: [], fx: [], hover: null, spell: null, resolve, over: false, wait: null };
+    B = { quick, need: -1, cmdWait: null, sim: !!cfg.sim, speed0: SPEED, title: cfg.title, sides, stacks: [], obst: new Set(), round: 0, queue: [], active: null, log: [], fx: [], hover: null, spell: null, resolve, over: false, wait: null };
     for (let i = 0; i < 2; i++) {
       const arr = B.sides[i].src.map((s, slot) => s && s.n > 0 ? { slot, u: s.u, n: s.n } : null).filter(Boolean);
       arr.forEach((s, k) => {
@@ -167,12 +168,53 @@ async function battleLoop() {
     if (UNITS[s.u].heal) healAlly(s);
     refreshBattleUI();
     if (B.sides[s.side].auto) { await sleep(320); await aiTurn(s); }
-    else await new Promise(r => { B.wait = r; });
+    else if (B.sides[s.side].remote) await remoteTurn(s);
+    else { netBattlePush(); await new Promise(r => { B.wait = r; }); }
     B.wait = null; B.spell = null; s.slow = 0;
     const done = [0, 1].find(i => !B.stacks.some(x => x.side === i && alive(x)));
     if (done !== undefined) { await sleep(500); endBattle(1 - done); return; }
     if (alive(s) && s.extra) { s.extra = false; B.queue.unshift(s); }
+    netBattlePush();
   }
+}
+// Ход отряда игрока за другим компьютером: ждём его команду. Молчит 45 секунд — дальше за него ходит ИИ.
+async function remoteTurn(s) {
+  const sd = B.sides[s.side];
+  for (let k = 0; k < 4; k++) {
+    B.need = s.side; refreshBattleUI(); netBattlePush();
+    let timer = null;
+    const cmd = await new Promise(res => { B.cmdWait = res; timer = setTimeout(() => res(null), 45000); });
+    clearTimeout(timer); if (B) { B.cmdWait = null; B.need = -1; }
+    if (!cmd) { sd.remote = false; sd.auto = true; blog('Соперник молчит — за него ходит ИИ'); break; }
+    const r = await remoteExec(s, cmd);
+    if (r === 'again') continue; // понты не тратят ход отряда
+    if (r) return;
+    break;
+  }
+  if (alive(s) && enemiesOf(s).length) await aiTurn(s);
+}
+// выполнить команду защитника; всё проверяем заново — клиент мог прислать что угодно
+async function remoteExec(s, c) {
+  const sd = B.sides[s.side], t = c.t == null ? null : B.stacks.find(x => x.id === c.t && alive(x));
+  if (c.k === 'auto') { sd.remote = false; sd.auto = true; return false; }
+  if (c.k === 'wait') { if (s.waited) return false; s.waited = true; B.queue.push(s); blog(`${sName(s)} ждут`); return true; }
+  if (c.k === 'defend') { s.defd = true; blog(`${sName(s)} встают в оборону`); return true; }
+  if (c.k === 'move') { const p = reach(s).get(`${c.x},${c.y}`); if (!p || !p.length) return false; await walk(s, p); return true; }
+  if (c.k === 'shoot') { if (!t || t.side === s.side || !canShoot(s)) return false; await strike(s, t, true, true); return true; }
+  if (c.k === 'barrel') { if (!canShoot(s) || !isBarrel(c.x, c.y)) return false; await shootBarrel(s, c.x, c.y); return true; }
+  if (c.k === 'hit') {
+    if (!t || t.side === s.side) return false;
+    if (cheb(s, t) > 1) { const p = c.at && reach(s).get(`${c.at.x},${c.at.y}`); if (!p || Math.max(Math.abs(c.at.x - t.x), Math.abs(c.at.y - t.y)) !== 1) return false; await walk(s, p); }
+    await melee(s, t); return true;
+  }
+  if (c.k === 'spell') {
+    const sp = SPELLS.find(x => x.id === c.id);
+    if (!sp || !sd.hero || !canCast(sd) || sd.hero.mana < sp.cost) return false;
+    if (sp.target !== 'all' && (!t || (sp.target === 'enemy') !== (t.side !== s.side))) return false;
+    await castSpell(sp, sp.target === 'all' ? null : t);
+    return alive(s) && enemiesOf(s).length ? 'again' : true;
+  }
+  return false;
 }
 
 function endBattle(winner) {
@@ -180,7 +222,7 @@ function endBattle(winner) {
   const out = i => { const arr = [null, null, null, null, null]; B.stacks.filter(s => s.side === i && alive(s)).forEach(s => { arr[s.slot] = { u: s.u, n: s.n }; }); return arr; };
   const r = { winner, aArmy: out(0), dArmy: out(1) };
   const res = B.resolve, quick = B.quick; SPEED = B.speed0;
-  if (!quick) battleUI(false);
+  if (!quick) { battleUI(false); netBattlePush(true); }
   B = null; if (!quick) sfx(winner === 0 ? 'win' : 'lose');
   res(r);
 }
@@ -241,6 +283,18 @@ async function act(fn) { if (!B || !B.wait || B.busy) return; B.busy = true; con
 function battleClickCell(cx, cy, fx, fy) {
   if (!B || !B.wait || B.busy) return;
   const s = B.active, t = stackAt(cx, cy);
+  if (B.mirror) { // это показ чужого боя: мы — защитник, наши клики уходят командами тому, кто считает бой
+    if (B.spell) { if (!t || (B.spell.target === 'enemy') !== (t.side !== s.side)) { toast('Не туда'); return; } netCmd({ k: 'spell', id: B.spell.id, t: t.id }); return; }
+    if (!t && isBarrel(cx, cy)) { if (canShoot(s)) netCmd({ k: 'barrel', x: cx, y: cy }); else toast('Бочку можно только расстрелять издалека'); return; }
+    if (t && t.side !== s.side) {
+      if (canShoot(s)) { netCmd({ k: 'shoot', t: t.id }); return; }
+      const opt = attackCell(s, t, fx, fy);
+      if (opt) netCmd({ k: 'hit', t: t.id, at: opt.length ? opt[opt.length - 1] : null }); else toast('Не дотянуться');
+      return;
+    }
+    const p = reach(s).get(`${cx},${cy}`); if (p && p.length) netCmd({ k: 'move', x: cx, y: cy });
+    return;
+  }
   if (B.spell) { castOn(t); return; }
   if (!t && isBarrel(cx, cy)) { if (canShoot(s)) act(() => shootBarrel(s, cx, cy)); else toast('Бочку можно только расстрелять издалека'); return; }
   if (t && t.side !== s.side) {
@@ -265,15 +319,15 @@ function attackCell(s, t, fx, fy) {
   }
   return best && best.p;
 }
-function battleWait() { act(async () => { const s = B.active; if (s.waited) { toast('Ждать можно раз за раунд'); return; } s.waited = true; B.queue.push(s); blog(`${sName(s)} ждут`); }); }
-function battleDefend() { act(async () => { B.active.defd = true; blog(`${sName(B.active)} встают в оборону`); }); }
-function battleAuto() { if (!B) return; const sd = B.sides[B.active.side]; sd.auto = true; toast('Авто-бой: дальше сами'); if (B.wait) { const w = B.wait; B.wait = null; aiTurn(B.active).then(() => { refreshBattleUI(); w(); }); } }
+function battleWait() { if (B && B.mirror) { if (B.active && B.active.waited) toast('Ждать можно раз за раунд'); else netCmd({ k: 'wait' }); return; } act(async () => { const s = B.active; if (s.waited) { toast('Ждать можно раз за раунд'); return; } s.waited = true; B.queue.push(s); blog(`${sName(s)} ждут`); }); }
+function battleDefend() { if (B && B.mirror) { netCmd({ k: 'defend' }); return; } act(async () => { B.active.defd = true; blog(`${sName(B.active)} встают в оборону`); }); }
+function battleAuto() { if (!B) return; if (B.mirror) { netCmd({ k: 'auto' }); return; } const sd = B.sides[B.active.side]; sd.auto = true; toast('Авто-бой: дальше сами'); if (B.wait) { const w = B.wait; B.wait = null; aiTurn(B.active).then(() => { refreshBattleUI(); w(); }); } }
 function canCast(sd) { return sd.hero && sd.castRound !== B.round; }
 function chooseSpell(id) {
   const s = B.active, sd = B.sides[s.side], sp = SPELLS.find(x => x.id === id), h = sd.hero;
   if (!canCast(sd)) { toast('Понты — раз за раунд'); return; }
   if (h.mana < sp.cost) { toast('Не хватает понтов'); return; }
-  if (sp.target === 'all') { castSpell(sp, null); return; }
+  if (sp.target === 'all') { if (B.mirror) netCmd({ k: 'spell', id: sp.id }); else castSpell(sp, null); return; }
   B.spell = sp; toast(sp.target === 'enemy' ? 'Выберите вражеский отряд' : 'Выберите свой отряд');
   refreshBattleUI();
 }

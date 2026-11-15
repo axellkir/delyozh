@@ -102,9 +102,9 @@ function refreshBattleUI() {
   if (!B || B.quick) return;
   const nm = sd => sd.hero ? `${heroIco(sd.hero, 24)} ${sd.hero.name}` : sd.owner >= 0 ? `гарнизон (${G.players[sd.owner].name})` : 'местные';
   const s = B.active, sd = s && B.sides[s.side];
-  $('bTop').innerHTML = `${B.title} · раунд ${B.round}<br><span style="font-size:10px"><span style="color:${B.sides[0].owner >= 0 ? pcol(B.sides[0].owner) : '#aaa'}">${nm(B.sides[0])}</span> против <span style="color:${B.sides[1].owner >= 0 ? pcol(B.sides[1].owner) : '#aaa'}">${nm(B.sides[1])}</span>${s ? ` · ходят: ${unitIcon(s.u, 20)} ${UNITS[s.u].name}` : ''}${B.spell ? ' · выберите цель для «' + B.spell.name + '»' : ''}</span>`;
+  $('bTop').innerHTML = `${B.title} · раунд ${B.round}<br><span style="font-size:10px"><span style="color:${B.sides[0].owner >= 0 ? pcol(B.sides[0].owner) : '#aaa'}">${nm(B.sides[0])}</span> против <span style="color:${B.sides[1].owner >= 0 ? pcol(B.sides[1].owner) : '#aaa'}">${nm(B.sides[1])}</span>${s ? ` · ходят: ${unitIcon(s.u, 20)} ${UNITS[s.u].name}` : ''}${B.spell ? ' · выберите цель для «' + B.spell.name + '»' : ''}${B.need >= 0 && !(B.mirror && B.wait) ? ' · ждём соперника' : ''}</span>`;
   $('bLog').innerHTML = B.log.join('<br>');
-  const human = s && !sd.auto;
+  const human = s && !sd.auto && !(sd.remote && !B.mirror) && (!B.mirror || !!B.wait);
   ['bWait', 'bDef', 'bAuto'].forEach(id => { $(id).disabled = !human; });
   $('bCast').disabled = !(human && sd.hero && canCast(sd) && sd.hero.mana >= 4);
   $('bCast').innerHTML = `${ico('i_pow', 16)} Понты (C)${sd && sd.hero ? ` ${ico('i_mana', 16)}${sd.hero.mana}` : ''}`;

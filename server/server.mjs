@@ -38,17 +38,25 @@ function seatIn(s, i) { // привести место из запроса к д
   return { kind: KINDS.includes(s.kind) ? s.kind : 'off', name: str(s.name, 16) || `Бригада ${i + 1}`, fac: FACS.includes(s.fac) ? s.fac : FACS[i % 3], hero: Number.isInteger(s.hero) && s.hero >= -1 && s.hero < 4 ? s.hero : -1, diff: [0, 1, 2].includes(s.diff) ? s.diff : 1, owner: null };
 }
 // что видит конкретный клиент: чужие ключи не раскрываем
-function view(r, cid, sv) {
+// sv, bv — какие снимок партии и состояние боя у клиента уже есть
+function view(r, cid, sv, bv = 1e15) {
   return {
     code: r.code, v: r.v, state: r.state, public: r.public, map: r.map, host: r.host === cid, hostName: r.names[r.host] || 'Хозяин',
     seats: r.seats.map(s => ({ kind: s.kind, name: s.name, fac: s.fac, hero: s.hero, diff: s.diff, owner: s.owner ? (s.owner === cid ? 'me' : 'other') : null, ownerName: s.owner ? r.names[s.owner] || '' : '', online: online(r, s.owner) })),
     auth: r.auth === cid, authOnline: online(r, r.auth), meta: r.meta, sv: r.sv, snap: r.snap && r.sv > sv ? r.snap : undefined,
+    bv: r.bv || 0, battle: (r.bv || 0) > bv ? r.battle || null : undefined,
   };
+}
+// ответ на опрос: тому, кто считает партию, заодно отдаём накопившиеся команды защитника
+function reply(r, cid, sv, bv) {
+  const v = view(r, cid, sv, bv);
+  if (r.auth === cid && r.cmds && r.cmds.length) { v.cmds = r.cmds; r.cmds = []; }
+  return v;
 }
 function bump(r) {
   r.v++; r.touched = Date.now(); save();
   const list = waiters.get(r.code) || []; waiters.delete(r.code);
-  for (const w of list) { clearTimeout(w.timer); send(w.res, 200, view(r, w.cid, w.sv)); }
+  for (const w of list) { clearTimeout(w.timer); send(w.res, 200, reply(r, w.cid, w.sv, w.bv)); }
 }
 function send(res, code, obj) { if (res.writableEnded) return; const b = JSON.stringify(obj); res.writeHead(code, { 'Content-Type': 'application/json; charset=utf-8', 'Cache-Control': 'no-store', 'X-Accel-Buffering': 'no' }); res.end(b); }
 const fail = (res, code, msg) => send(res, code, { error: msg });
@@ -126,11 +134,11 @@ async function api(req, res, url) {
   if (!r) return fail(res, 404, 'Комната не найдена');
 
   if (req.method === 'GET') { // состояние комнаты; с wait=1 ждёт изменений
-    const cid = url.searchParams.get('cid'), v = Number(url.searchParams.get('v') || 0), sv = Number(url.searchParams.get('sv') || 0);
+    const cid = url.searchParams.get('cid'), v = Number(url.searchParams.get('v') || 0), sv = Number(url.searchParams.get('sv') || 0), bv = Number(url.searchParams.get('bv') || 0);
     if (!isCid(cid)) return fail(res, 400, 'нет ключа клиента');
     r.seen[cid] = Date.now();
-    if (r.v > v || url.searchParams.get('wait') !== '1') return send(res, 200, view(r, cid, sv));
-    const w = { res, cid, sv, timer: setTimeout(() => { const l = waiters.get(r.code) || []; waiters.set(r.code, l.filter(x => x !== w)); send(res, 200, view(r, cid, sv)); }, POLL_MS) };
+    if (r.v > v || url.searchParams.get('wait') !== '1') return send(res, 200, reply(r, cid, sv, bv));
+    const w = { res, cid, sv, bv, timer: setTimeout(() => { const l = waiters.get(r.code) || []; waiters.set(r.code, l.filter(x => x !== w)); send(res, 200, reply(r, cid, sv, bv)); }, POLL_MS) };
     waiters.set(r.code, [...(waiters.get(r.code) || []), w]);
     req.on('close', () => { clearTimeout(w.timer); const l = waiters.get(r.code) || []; waiters.set(r.code, l.filter(x => x !== w)); });
     return undefined;
@@ -145,6 +153,17 @@ async function api(req, res, url) {
     if (err) return fail(res, 409, err);
     bump(r); return send(res, 200, view(r, b.cid, r.sv));
   }
+  if (parts[3] === 'battle') { // тот, кто считает партию, показывает остальным идущий бой (или сообщает, что он кончился)
+    if (r.auth !== b.cid) return fail(res, 403, 'Сейчас не ваш ход');
+    r.battle = typeof b.data === 'string' && b.data.length < 60000 ? b.data : null; r.bv = (r.bv || 0) + 1;
+    bump(r); return send(res, 200, { ok: true, bv: r.bv });
+  }
+  if (parts[3] === 'cmd') { // игрок, на которого напали, командует своими отрядами
+    const seat = r.seats.findIndex(x => x.kind === 'human' && x.owner === b.cid);
+    if (seat < 0 || r.state !== 'playing' || !b.cmd || typeof b.cmd !== 'object') return fail(res, 403, 'Вы не в этой партии');
+    r.cmds = [...(r.cmds || []), { seat, cmd: b.cmd }].slice(-20);
+    bump(r); return send(res, 200, { ok: true });
+  }
   if (parts[3] === 'start' || parts[3] === 'snap') {
     if (typeof b.snap !== 'string' || b.snap.length < 2) return fail(res, 400, 'нет снимка партии');
     if (parts[3] === 'start') {
@@ -156,7 +175,7 @@ async function api(req, res, url) {
       if (r.state !== 'playing') return fail(res, 409, 'Партия не идёт');
       if (r.auth !== b.cid) return fail(res, 403, 'Сейчас не ваш ход');
     }
-    r.snap = b.snap; r.sv++;
+    r.snap = b.snap; r.sv++; r.cmds = [];
     const m = b.meta || {};
     r.meta = { day: Number(m.day) || 1, cur: Number(m.cur) || 0, over: !!m.over, name: str(m.name, 16) };
     if (r.meta.over) r.state = 'over';

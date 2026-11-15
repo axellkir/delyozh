@@ -4,7 +4,7 @@
 // Когда ход доходит до игрока за другим компьютером, вместе со снимком уходит право хода.
 // Ходы ботов считает тот, кто ходил перед ними. В бою за игрока с другого компьютера отбивается ИИ.
 
-const NET = { on: false, code: '', cid: '', name: '', room: null, v: 0, sv: 0, auth: false, mine: new Set(), view: null, introTurn: -1, timer: null, loopId: 0, shown: false, overShown: false, q: Promise.resolve(), list: null };
+const NET = { on: false, code: '', cid: '', name: '', room: null, v: 0, sv: 0, bv: 0, auth: false, mine: new Set(), view: null, introTurn: -1, timer: null, loopId: 0, shown: false, overShown: false, q: Promise.resolve(), list: null };
 {
   const rnd16 = () => Array.from(crypto.getRandomValues(new Uint8Array(16)), b => b.toString(16).padStart(2, '0')).join('');
   try { NET.cid = localStorage.getItem('delyozh_cid') || ''; if (!/^[a-f0-9]{32}$/.test(NET.cid)) { NET.cid = rnd16(); localStorage.setItem('delyozh_cid', NET.cid); } NET.name = localStorage.getItem('delyozh_name') || ''; }
@@ -85,7 +85,7 @@ async function netJoin(code) {
   netEnter(d);
 }
 function netEnter(d) {
-  NET.on = true; NET.code = d.code; NET.v = 0; NET.sv = 0; NET.auth = false; NET.shown = false; NET.room = null; NET.mine = new Set(); NET.view = null;
+  NET.on = true; NET.code = d.code; NET.v = 0; NET.sv = 0; NET.bv = 0; NET.auth = false; NET.shown = false; NET.room = null; NET.mine = new Set(); NET.view = null;
   try { history.replaceState(null, '', '?room=' + d.code); } catch (e) { /* не страшно */ }
   netRoom(d);
   NET.v = 0; // первый опрос должен ответить сразу и принести партию, если она уже идёт
@@ -104,7 +104,7 @@ async function netLoop() {
   const id = ++NET.loopId; let fails = 0;
   while (NET.on && id === NET.loopId) {
     try {
-      const d = await netReq('GET', `api/rooms/${NET.code}?cid=${NET.cid}&v=${NET.v}&sv=${NET.sv}&wait=1`);
+      const d = await netReq('GET', `api/rooms/${NET.code}?cid=${NET.cid}&v=${NET.v}&sv=${NET.sv}&bv=${NET.bv}&wait=1`);
       if (id !== NET.loopId) return;
       fails = 0; netRoom(d);
     } catch (e) {
@@ -118,7 +118,9 @@ function netRoom(d) {
   if (!NET.on || d.code !== NET.code) return;
   NET.room = d; NET.v = Math.max(NET.v, d.v);
   if (d.state === 'lobby') { if (!$('menu').hidden) renderMenu(); return; }
-  if (d.snap && d.sv > NET.sv) { NET.sv = d.sv; if (!(NET.auth && G)) netApply(d.snap); } // свой же снимок обратно не применяем
+  if (d.snap && d.sv > NET.sv) { NET.sv = d.sv; if (!(NET.auth && G)) { if (B && B.mirror) netMirror(null); netApply(d.snap); } } // свой же снимок обратно не применяем
+  if (d.bv > NET.bv) { NET.bv = d.bv; if (G && d.battle !== undefined && !(B && !B.mirror)) netMirror(d.battle); }
+  if (d.cmds) for (const c of d.cmds) if (B && !B.mirror && B.cmdWait && B.need >= 0 && G.players[B.sides[B.need].owner].seat === c.seat) { const r = B.cmdWait; B.cmdWait = null; r(c.cmd); }
   if (!G) return;
   netMine();
   if (d.auth && !NET.auth && !G.over) { NET.auth = true; netTakeTurn(); }
@@ -143,6 +145,39 @@ async function netStart() {
   if (!d) { G = null; NET.auth = false; renderMenu(); return; }
   NET.introTurn = G.turnNo;
   startPlaying();
+}
+
+// ---------- живая защита: бой показывается всем, защитник командует своими отрядами ----------
+const netSeatOnline = pid => !!(NET.room && G.players[pid] && NET.room.seats[G.players[pid].seat] && NET.room.seats[G.players[pid].seat].online);
+// тот, кто считает бой, рассылает его состояние после каждого действия; data = null — бой кончился
+function netBattlePush(end) {
+  if (!NET.on || !NET.auth || (!end && (!B || B.quick || B.mirror))) return;
+  const data = end ? null : JSON.stringify({
+    title: B.title, round: B.round, active: B.active ? B.active.id : -1, need: B.need == null ? -1 : B.need, log: B.log,
+    sides: B.sides.map(sd => ({ owner: sd.owner, hero: sd.hero ? { name: sd.hero.name, mana: sd.hero.mana } : null, st: sd.st, castRound: sd.castRound, fence: sd.fence, remote: !!sd.remote })),
+    stacks: B.stacks.map(s => ({ id: s.id, side: s.side, slot: s.slot, u: s.u, n: s.n, n0: s.n0, hp: s.hp, x: s.x, y: s.y, shots: s.shots, ret: s.ret, buff: s.buff, defd: s.defd, waited: s.waited, curse: s.curse, slow: s.slow, stun: s.stun, moved: s.moved })),
+    obst: [...B.obst], barrels: [...B.barrels], fences: [...B.fences], queue: B.queue.map(s => s.id),
+  });
+  NET.q = NET.q.then(() => netReq('POST', `api/rooms/${NET.code}/battle`, { cid: NET.cid, data }).then(d => { NET.bv = Math.max(NET.bv, d.bv); }, () => {}));
+}
+// у остальных: показать чужой бой; если ход за нашим отрядом — включить управление
+function netMirror(data) {
+  if (!data) { if (B && B.mirror) { battleUI(false); B = null; } return; }
+  const v = JSON.parse(data), old = B && B.mirror ? B : null, pool0 = s => (s.n - 1) * UNITS[s.u].hp + s.hp;
+  const stacks = v.stacks.map(s => { const o = old && old.stacks.find(x => x.id === s.id); return { ...s, px: o ? o.px : s.x, py: o ? o.py : s.y, flash: o && pool0(o) > pool0(s) ? 1 : 0, lunge: null, was: o ? pool0(o) : pool0(s) }; });
+  const sides = v.sides.map((sd, i) => ({ i, owner: sd.owner, hero: sd.hero, st: sd.st, castRound: sd.castRound, fence: sd.fence, remote: sd.remote, auto: !(sd.remote && NET.mine.has(sd.owner)) }));
+  const active = stacks.find(s => s.id === v.active) || null, mine = v.need >= 0 && active && active.side === v.need && NET.mine.has(sides[v.need].owner);
+  B = { mirror: true, quick: false, title: v.title, round: v.round, sides, stacks, obst: new Set(v.obst), barrels: new Set(v.barrels), fences: new Set(v.fences), queue: v.queue.map(id => stacks.find(s => s.id === id)).filter(Boolean), active, log: v.log, fx: old ? old.fx : [], shake: old ? old.shake : 0, spell: null, busy: false, over: false, need: v.need, wait: mine ? () => {} : null };
+  for (const s of stacks) if (s.was > pool0(s)) { B.fx.push({ x: s.x, y: s.y, text: `−${s.was - pool0(s)}`, col: '#ff5050', t: 0 }); if (s.n <= 0) B.shake = 5; }
+  if (!old) { battleUI(true); sfx('battle'); if (sides.some(sd => sd.remote && NET.mine.has(sd.owner))) toast('На вас напали — отбивайтесь!', true); }
+  else if (mine) sfx('turn');
+  refreshBattleUI();
+}
+// защитник отдал команду своему отряду
+function netCmd(cmd) {
+  if (!B || !B.mirror || !B.wait) return;
+  B.wait = null; B.spell = null; $('bSpells').hidden = true; refreshBattleUI();
+  netReq('POST', `api/rooms/${NET.code}/cmd`, { cid: NET.cid, cmd }).catch(e => toast(e.message, true));
 }
 
 // ---------- в игре: кто в комнате ----------
