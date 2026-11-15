@@ -135,7 +135,7 @@ function netRoom(d) {
   netMine();
   if (d.auth && !NET.auth && !G.over) { NET.auth = true; netTakeTurn(); }
   // одновременные ходы: хозяин сводит день, когда его сдали все
-  if (d.host && G.sim && NET.simSent && !NET.merging && d.subw > 0 && d.subn >= d.subw) simCollect();
+  if (d.host && G.sim && NET.simSent && NET.simDay === G.day && d.subDay === G.day && !NET.merging && d.subw > 0 && d.subn >= d.subw) simCollect();
   else if (!d.auth && NET.auth && NET.sv >= d.sv && !netRemote(G.cur) && d.meta && d.sv > 0 && !NET.timer) { /* сервер ещё не получил наш последний снимок — ждём */ }
   refresh();
 }
@@ -205,7 +205,7 @@ async function startDay() {
 }
 // начало общего дня на этом компьютере
 function simBegin() {
-  NET.simDay = G.day; NET.simBase = netPack(); NET.simSent = !!(NET.room && NET.room.submitted); NET.merging = false;
+  NET.simDay = G.day; NET.simBase = netPack(); NET.simSent = !!(NET.room && NET.room.submitted && NET.room.subDay === G.day); NET.merging = false;
   NET.simList = [...NET.mine].filter(id => G.players[id].alive).sort((a, b) => a - b);
   if (NET.simSent) { NET.simActive = false; refresh(); return; }       // день уже сдан (страницу перезагрузили)
   if (!NET.simList.length) { NET.simActive = false; if (NET.mine.size) netSubmit(); refresh(); return; } // выбывшим и зрителям ходить нечем
@@ -223,13 +223,13 @@ async function netSubmit() {
   NET.simSent = true;
   const data = netPack();
   for (let i = 0; i < 6 && NET.on; i++) {
-    try { await netReq('POST', `api/rooms/${NET.code}/submit`, { cid: NET.cid, data }); refresh(); return; }
+    try { await netReq('POST', `api/rooms/${NET.code}/submit`, { cid: NET.cid, day: G.day, data }); refresh(); return; }
     catch (e) { toast('Нет связи с сервером, пробую ещё…', true); await realSleep(1200 * (i + 1)); }
   }
 }
 // хозяин: забрать сданные дни, свести, провести ботов, начать новый день
 async function simCollect() {
-  if (NET.merging || !G.sim) return;
+  if (NET.merging || !G.sim || NET.simDay !== G.day) return; // сводим только день, который сами начали
   NET.merging = true;
   try {
     const d = await netReq('GET', `api/rooms/${NET.code}/subs?cid=${NET.cid}`);
@@ -324,7 +324,7 @@ function netBox() {
   const rows = G.players.map(p => { const s = R.seats[p.seat]; return `<span style="color:${p.col};opacity:${p.alive ? 1 : 0.4}">${p.kind === 'bot' ? ico('i_bot', 14) : `<i class="dot ${s && s.online ? 'on' : ''}"></i>`} ${esc(p.name)}${s && s.owner === 'me' ? ' (вы)' : ''}</span>`; }).join(' · ');
   const stuck = R.host && !G.over && !G.sim && cur.kind !== 'bot' && seat && seat.owner !== 'me' && !seat.online;
   el.hidden = false;
-  el.innerHTML = `<h3>Комната ${R.code}</h3><small>${rows}</small>${G.sim && !G.over ? `<br><small>Общий день: сдали ${R.subn} из ${R.subw}</small>` : ''}${waiting && R.host && R.subn < R.subw && NET.simSent ? '<button class="sec" id="netGoOn" style="margin-top:6px;width:100%">Не ждать остальных</button>' : ''}${stuck ? `<button class="sec" id="netTake" style="margin-top:6px;width:100%">Игрок не в сети — забрать его ход</button>` : ''}`;
+  el.innerHTML = `<h3>Комната ${R.code}</h3><small>${rows}</small>${G.sim && !G.over ? `<br><small>Общий день: сдали ${R.subDay === G.day ? R.subn : 0} из ${R.subw}</small>` : ''}${waiting && R.host && R.subn < R.subw && NET.simSent ? '<button class="sec" id="netGoOn" style="margin-top:6px;width:100%">Не ждать остальных</button>' : ''}${stuck ? `<button class="sec" id="netTake" style="margin-top:6px;width:100%">Игрок не в сети — забрать его ход</button>` : ''}`;
   if (stuck) $('netTake').onclick = () => netOp('takeover', { seat: cur.seat });
   if ($('netGoOn')) $('netGoOn').onclick = () => simCollect();
 }

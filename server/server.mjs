@@ -46,7 +46,7 @@ function view(r, cid, sv, bv = 1e15) {
     auth: r.auth === cid, authOnline: online(r, r.auth), meta: r.meta, sv: r.sv, snap: r.snap && r.sv > sv ? r.snap : undefined,
     bv: r.bv || 0, battle: (r.bv || 0) > bv ? r.battle || null : undefined,
     // одновременные ходы: сколько мест уже сдали свой день и сдал ли его этот клиент
-    turns: r.turns || 'seq', hostSeat: r.seats.findIndex(s => s.owner === r.host),
+    subDay: r.subDay || 0, turns: r.turns || 'seq', hostSeat: r.seats.findIndex(s => s.owner === r.host),
     subn: r.seats.filter((s, i) => s.kind === 'human' && s.owner && r.subs && r.subs[i] != null).length,
     subw: r.seats.filter(s => s.kind === 'human' && s.owner).length,
     submitted: r.seats.some(s => s.owner === cid) && r.seats.every((s, i) => s.owner !== cid || (r.subs && r.subs[i] != null)),
@@ -169,7 +169,9 @@ async function api(req, res, url) {
     if (r.state !== 'playing' || typeof b.data !== 'string' || b.data.length < 2) return fail(res, 409, 'Партия не идёт');
     const mine = r.seats.map((x, i) => (x.kind === 'human' && x.owner === b.cid ? i : -1)).filter(i => i >= 0);
     if (!mine.length) return fail(res, 403, 'Вы не в этой партии');
-    r.subs = r.subs || {}; for (const i of mine) r.subs[i] = b.data;
+    const day = Number(b.day) || 0;
+    if (r.subDay !== day) { r.subs = {}; r.subDay = day; } // сданное за прошлые дни больше не нужно
+    for (const i of mine) r.subs[i] = b.data;
     bump(r); return send(res, 200, { ok: true });
   }
   if (parts[3] === 'cmd') { // игрок, на которого напали, командует своими отрядами
@@ -189,7 +191,8 @@ async function api(req, res, url) {
       if (r.state !== 'playing') return fail(res, 409, 'Партия не идёт');
       if (r.auth !== b.cid) return fail(res, 403, 'Сейчас не ваш ход');
     }
-    r.snap = b.snap; r.sv++; r.cmds = []; r.subs = {};
+    r.snap = b.snap; r.sv++; r.cmds = [];
+    if (parts[3] === 'start') { r.subs = {}; r.subDay = 0; }
     const m = b.meta || {};
     r.meta = { day: Number(m.day) || 1, cur: Number(m.cur) || 0, over: !!m.over, name: str(m.name, 16) };
     if (r.meta.over) r.state = 'over';
