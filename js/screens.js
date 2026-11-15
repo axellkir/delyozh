@@ -1,7 +1,10 @@
 'use strict';
 // Окна: диалоги, шторка между ходами, город, обмен армиями, меню, кнопки боя, победа.
 
-function ask(title, html, buttons) {
+// opt.pid — для какой бригады окно (по умолчанию — чей ход). За бота отвечает он сам, окно не показывается.
+function ask(title, html, buttons, opt) {
+  const pid = opt && opt.pid != null ? opt.pid : G ? G.cur : -1;
+  if (isBot(pid) && !G.over) return Promise.resolve(botAnswer(pid, title, buttons));
   return new Promise(res => {
     $('mTitle').textContent = title; $('mBody').innerHTML = html;
     $('mBtns').innerHTML = buttons.map((b, i) => `<button data-i="${i}" class="${i ? 'sec' : ''}">${b}</button>`).join('');
@@ -96,7 +99,7 @@ function openExchange(a, b) {
 // ---------- бой ----------
 function battleUI(on) { $('bui').hidden = !on; $('bSpells').hidden = true; if (on) refreshBattleUI(); }
 function refreshBattleUI() {
-  if (!B) return;
+  if (!B || B.quick) return;
   const nm = sd => sd.hero ? `${sd.hero.em} ${sd.hero.name}` : sd.owner >= 0 ? `гарнизон (${G.players[sd.owner].name})` : 'местные';
   const s = B.active, sd = s && B.sides[s.side];
   $('bTop').innerHTML = `${B.title} · раунд ${B.round}<br><span style="font-size:16px"><span style="color:${B.sides[0].owner >= 0 ? PCOL[B.sides[0].owner] : '#aaa'}">${nm(B.sides[0])}</span> ⚔️ <span style="color:${B.sides[1].owner >= 0 ? PCOL[B.sides[1].owner] : '#aaa'}">${nm(B.sides[1])}</span>${s ? ` · ходят: ${UNITS[s.u].em} ${UNITS[s.u].name}` : ''}${B.spell ? ' · выберите цель для «' + B.spell.name + '»' : ''}</span>`;
@@ -120,30 +123,61 @@ $('bDef').onclick = () => battleDefend();
 $('bCast').onclick = () => toggleSpells();
 $('bAuto').onclick = () => battleAuto();
 
-// ---------- меню ----------
-let NPL = 3;
-const setup = [{ name: 'Красные', fac: 'kach' }, { name: 'Жёлтые', fac: 'rynok' }, { name: 'Синие', fac: 'neform' }];
+// ---------- лобби ----------
+// Шесть мест. На каждом — человек, бот или никого; бригада, стартовый герой, для бота — сложность.
+const LOBBY_KEY = 'delyozh_lobby_v1';
+const KINDS = [['human', '👤', 'Человек'], ['bot', '🤖', 'Бот'], ['off', '✖', 'Закрыто']];
+let seats = PCOL_NAME.map((n, i) => ({ kind: i < 3 ? 'human' : 'off', name: n, fac: FAC_IDS[i % FAC_IDS.length], hero: -1, diff: 1 }));
+try {
+  const saved = JSON.parse(localStorage.getItem(LOBBY_KEY) || 'null');
+  if (Array.isArray(saved)) saved.slice(0, MAX_PLAYERS).forEach((x, i) => { if (x && FACTIONS[x.fac] && KINDS.some(k => k[0] === x.kind)) seats[i] = { kind: x.kind, name: String(x.name || PCOL_NAME[i]).slice(0, 16), fac: x.fac, hero: FACTIONS[x.fac].heroes[x.hero] ? x.hero : -1, diff: DIFF[x.diff] ? x.diff : 1 }; });
+} catch (e) { /* настройки лобби не обязательны */ }
+const saveLobby = () => { try { localStorage.setItem(LOBBY_KEY, JSON.stringify(seats)); } catch (e) { /* не страшно */ } };
+const esc = t => String(t).replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
+
 function renderMenu() {
-  $('pset').innerHTML = setup.map((p, i) => `<div class="pcard ${i >= NPL ? 'off' : ''}" style="border-color:${PCOL[i]}"><b style="color:${PCOL[i]}">Игрок ${i + 1}</b>
-    <input data-pn="${i}" value="${p.name}" maxlength="16"><div class="facs">${FAC_IDS.map(f => `<div class="fac ${p.fac === f ? 'on' : ''}" data-pf="${i}" data-f="${f}"><b>${FACTIONS[f].em} ${FACTIONS[f].name}</b>${FACTIONS[f].desc}</div>`).join('')}</div></div>`).join('');
-  document.querySelectorAll('[data-pn]').forEach(el => el.oninput = () => { setup[+el.dataset.pn].name = el.value; });
-  document.querySelectorAll('[data-pf]').forEach(el => el.onclick = () => { setup[+el.dataset.pf].fac = el.dataset.f; renderMenu(); });
-  $('m2').className = NPL === 2 ? '' : 'sec'; $('m3').className = NPL === 3 ? '' : 'sec';
+  const card = (p, i) => {
+    const F = FACTIONS[p.fac], hc = F.heroes[p.hero], on = p.kind !== 'off';
+    const head = `<div class="phead"><b style="color:${PCOL[i]}">● ${PCOL_NAME[i]}</b><div class="seg">${KINDS.map(([k, em, t]) => `<span class="${p.kind === k ? 'on' : ''}" data-seat="${i}" data-kind="${k}" title="${t}">${em}</span>`).join('')}</div></div>`;
+    if (!on) return `<div class="pcard off" style="border-color:${PCOL[i]}">${head}<div class="poff">место закрыто<br><small>нажмите 👤 или 🤖</small></div></div>`;
+    return `<div class="pcard" style="border-color:${PCOL[i]}">${head}
+      <input data-pn="${i}" value="${esc(p.name)}" maxlength="16" placeholder="Название бригады">
+      <div class="seg wide">${FAC_IDS.map(f => `<span class="${p.fac === f ? 'on' : ''}" data-seat="${i}" data-fac="${f}" title="${FACTIONS[f].desc}">${FACTIONS[f].em} ${FACTIONS[f].name[0] + FACTIONS[f].name.slice(1).toLowerCase()}</span>`).join('')}</div>
+      <small>${F.desc}</small>
+      <div class="seg wide heroes"><span class="${hc ? '' : 'on'}" data-seat="${i}" data-hero="-1" title="Случайный герой">🎲</span>${F.heroes.map((c, k) => `<span class="${p.hero === k ? 'on' : ''}" data-seat="${i}" data-hero="${k}" title="${c.name} — ${SPECS[c.spec].name}: ${SPECS[c.spec].desc}">${c.em}</span>`).join('')}</div>
+      <small>${hc ? `<b>${hc.name}</b> · ★ ${SPECS[hc.spec].name}: ${SPECS[hc.spec].desc}` : 'Герой: какой придёт'}</small>
+      ${p.kind === 'bot' ? `<div class="seg wide">${DIFF.map((d, k) => `<span class="${p.diff === k ? 'on' : ''}" data-seat="${i}" data-diff="${k}" title="${d.desc}">${d.em} ${d.name}</span>`).join('')}</div><small>${DIFF[p.diff].desc}</small>` : ''}</div>`;
+  };
+  $('pset').innerHTML = seats.map(card).join('');
+  const act = seats.filter(p => p.kind !== 'off'), hum = act.filter(p => p.kind === 'human').length;
+  $('lobbyNote').textContent = act.length < 2 ? 'Нужно хотя бы две бригады' : !hum ? 'Нужен хотя бы один человек' : `Бригад: ${act.length} · людей: ${hum}, ботов: ${act.length - hum}${act.length > 3 ? ' · карта больше обычной' : ''}`;
+  $('newBtn').disabled = act.length < 2 || !hum;
+  document.querySelectorAll('[data-pn]').forEach(el => el.oninput = () => { seats[+el.dataset.pn].name = el.value; saveLobby(); });
+  document.querySelectorAll('#pset [data-seat]').forEach(el => el.onclick = () => {
+    const p = seats[+el.dataset.seat], d = el.dataset;
+    if (d.kind) p.kind = d.kind;
+    if (d.fac && d.fac !== p.fac) { p.fac = d.fac; p.hero = -1; }
+    if (d.hero) p.hero = +d.hero;
+    if (d.diff) p.diff = +d.diff;
+    sfx('click'); saveLobby(); renderMenu();
+  });
   $('contBtn').disabled = !hasSave();
 }
-$('m2').onclick = () => { NPL = 2; renderMenu(); };
-$('m3').onclick = () => { NPL = 3; renderMenu(); };
 $('newBtn').onclick = () => {
   audioInit();
   if (hasSave() && !confirm('Начать новую игру? Сохранённая партия пропадёт.')) return;
-  genMap({ players: setup.slice(0, NPL).map(p => ({ name: p.name.trim() || 'Бригада', fac: p.fac })) });
+  const players = seats.map((p, i) => ({ ...p, col: PCOL[i], name: p.name.trim() || PCOL_NAME[i] })).filter(p => p.kind !== 'off');
+  genMap({ players });
   startPlaying();
 };
-$('contBtn').onclick = () => { audioInit(); if (loadGame()) startPlaying(); else toast('Сохранение не читается'); };
-$('menuLink').onclick = e => { e.preventDefault(); if (BUSY) return; saveGame(); $('menu').hidden = false; renderMenu(); };
+$('contBtn').onclick = () => { audioInit(); if (loadGame()) startPlaying(); else toast('Сохранение не читается', true); };
+$('menuLink').onclick = e => { e.preventDefault(); if (BUSY || BOTTING || B) return; saveGame(); $('menu').hidden = false; renderMenu(); };
 function startPlaying() { prerender(); $('menu').hidden = true; refresh(); beginTurn(); }
 function showVictory(p) {
-  ask(`🏆 ${p.name} забирают Москву!`, `<div class="fun" style="font-size:22px">Остальные бригады распались. День ${G.day}. ${FACTIONS[p.fac].em} ${FACTIONS[p.fac].name} — хозяева города.</div>`, ['В меню'])
+  BOTTING = false;
+  const bot = p.kind === 'bot', title = bot ? `🤖 ${p.name} забирают Москву` : `🏆 ${p.name} забирают Москву!`;
+  const text = bot ? `Людей в городе не осталось — всё поделили боты. День ${G.day}. Реванш?` : `Остальные бригады распались. День ${G.day}. ${FACTIONS[p.fac].em} ${FACTIONS[p.fac].name} — хозяева города.`;
+  ask(title, `<div class="fun" style="font-size:22px">${text}</div>`, ['В меню'], { pid: -1 })
     .then(() => { $('menu').hidden = false; renderMenu(); });
 }
 addEventListener('keydown', e => { if (e.code === 'Escape' && !$('town').hidden) closeTown(); });

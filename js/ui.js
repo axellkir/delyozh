@@ -39,10 +39,12 @@ function centerOn(x, y) { UI.cam.x = x * TS + TS / 2 - VW / 2; UI.cam.y = y * TS
 function follow(h) { const sx = h.x * TS - UI.cam.x, sy = h.y * TS - UI.cam.y; if (sx < 120 || sy < 120 || sx > VW - 160 || sy > VH - 160) centerOn(h.x, h.y); }
 function selectHero(h) { UI.sel = h ? h.id : null; UI.plan = null; if (h) centerOn(h.x, h.y); refresh(); }
 const selHero = () => (UI.sel ? heroById(UI.sel) : null);
-const seen = (x, y) => G.players[G.cur].seen[y * MW + x];
+const seen = (x, y) => viewP().seen[y * MW + x];
+const locked = () => BUSY || BOTTING;
 
 let toastT = null;
-function toast(t) { const el = $('toast'); el.textContent = t; el.style.opacity = 1; clearTimeout(toastT); toastT = setTimeout(() => { el.style.opacity = 0; }, 2200); }
+// во время хода бота мелкие сообщения его героев людям не показываем; force — показать всё равно
+function toast(t, force) { if (BOTTING && !force && !B) return; const el = $('toast'); el.textContent = t; el.style.opacity = 1; clearTimeout(toastT); toastT = setTimeout(() => { el.style.opacity = 0; }, 2200); }
 
 // ---------- карта ----------
 const sizeWord = n => (n < 5 ? 'Несколько' : n < 10 ? 'Группа' : n < 20 ? 'Толпа' : n < 50 ? 'Банда' : 'Орда');
@@ -70,11 +72,11 @@ function drawMap() {
     if (o.x < x0 - 1 || o.x > x1 + 1 || o.y < y0 - 1 || o.y > y1 + 1 || !seen(o.x, o.y)) continue;
     const X = o.x * TS + TS / 2, Y = o.y * TS + TS / 2;
     if (o.t === 'town') {
-      c.fillStyle = o.owner >= 0 ? PCOL[o.owner] : '#ddd'; c.fillRect(X - 26, Y - 30, 52, 8);
+      c.fillStyle = o.owner >= 0 ? pcol(o.owner) : '#ddd'; c.fillRect(X - 26, Y - 30, 52, 8);
       c.font = '44px serif'; c.fillText('🏢', X - 6, Y + 2); c.font = '24px serif'; c.fillText(FACTIONS[o.fac].em, X + 16, Y + 12);
       continue;
     }
-    if (o.t === 'mine' || o.t === 'town') { c.fillStyle = o.owner >= 0 ? PCOL[o.owner] : '#eee'; c.fillRect(X + 8, Y - 22, 12, 9); c.fillStyle = '#222'; c.fillRect(X + 7, Y - 22, 2, 22); }
+    if (o.t === 'mine' || o.t === 'town') { c.fillStyle = o.owner >= 0 ? pcol(o.owner) : '#eee'; c.fillRect(X + 8, Y - 22, 12, 9); c.fillStyle = '#222'; c.fillRect(X + 7, Y - 22, 2, 22); }
     let em = '?';
     if (o.t === 'mine') em = MINE[o.kind].em; else if (o.t === 'pile') em = RES_ICON[o.res]; else if (o.t === 'chest') em = '📦';
     else if (o.t === 'art') { em = ARTS[o.art].em; c.fillStyle = `rgba(255,220,60,${0.25 + 0.15 * Math.sin(now / 300)})`; c.beginPath(); c.arc(X, Y, 20, 0, 7); c.fill(); }
@@ -98,7 +100,7 @@ function drawMap() {
     if (!seen(o.x, o.y)) continue;
     const X = o.x * TS + TS / 2, Y = o.y * TS + TS / 2, inTown = !!townAt(o.x, o.y), dx = inTown ? 14 : 0, dy = inTown ? 12 : 0;
     if (o.id === UI.sel) { c.strokeStyle = '#ffd21a'; c.lineWidth = 3; c.beginPath(); c.arc(X + dx, Y + dy, 21 + Math.sin(now / 180) * 2, 0, 7); c.stroke(); }
-    c.fillStyle = PCOL[o.owner]; c.beginPath(); c.arc(X + dx, Y + dy, 17, 0, 7); c.fill(); c.strokeStyle = '#000'; c.lineWidth = 2; c.stroke();
+    c.fillStyle = pcol(o.owner); c.beginPath(); c.arc(X + dx, Y + dy, 17, 0, 7); c.fill(); c.strokeStyle = '#000'; c.lineWidth = 2; c.stroke();
     c.font = '26px serif'; c.fillText(o.em, X + dx, Y + dy + 1);
   }
   // туман
@@ -144,13 +146,13 @@ function drawBattle() {
     st.px += (st.x - st.px) * 0.35; st.py += (st.y - st.py) * 0.35;
     const X = ox + st.px * cs + cs / 2, Y = oy + st.py * cs + cs / 2, own = B.sides[st.side].owner;
     if (st === s) { c.strokeStyle = '#ffd21a'; c.lineWidth = 4; c.beginPath(); c.arc(X, Y, cs * 0.44 + Math.sin(now / 150) * 2, 0, 7); c.stroke(); }
-    c.fillStyle = own >= 0 ? PCOL[own] : '#8a8a8a'; c.globalAlpha = 0.55; c.beginPath(); c.arc(X, Y, cs * 0.4, 0, 7); c.fill(); c.globalAlpha = 1;
+    c.fillStyle = own >= 0 ? pcol(own) : '#8a8a8a'; c.globalAlpha = 0.55; c.beginPath(); c.arc(X, Y, cs * 0.4, 0, 7); c.fill(); c.globalAlpha = 1;
     c.save(); c.translate(X, Y); if (st.side === 1) c.scale(-1, 1);
     c.font = Math.round(cs * 0.58) + 'px serif'; c.fillText(UNITS[st.u].em, 0, 2); c.restore();
     if (st.flash > 0) { c.fillStyle = `rgba(255,40,40,${st.flash * 0.5})`; c.beginPath(); c.arc(X, Y, cs * 0.4, 0, 7); c.fill(); st.flash = Math.max(0, st.flash - 0.05); }
     if (st.defd) { c.font = Math.round(cs * 0.25) + 'px serif'; c.fillText('🛡️', X - cs * 0.32, Y - cs * 0.3); }
     const label = String(st.n); c.font = `bold ${Math.round(cs * 0.22)}px sans-serif`;
-    const w = c.measureText(label).width + 8; c.fillStyle = own >= 0 ? PCOL[own] : '#666'; c.fillRect(X + cs * 0.42 - w, Y + cs * 0.22, w, cs * 0.26); c.fillStyle = '#000'; c.fillText(label, X + cs * 0.42 - w / 2, Y + cs * 0.36);
+    const w = c.measureText(label).width + 8; c.fillStyle = own >= 0 ? pcol(own) : '#666'; c.fillRect(X + cs * 0.42 - w, Y + cs * 0.22, w, cs * 0.26); c.fillStyle = '#000'; c.fillText(label, X + cs * 0.42 - w / 2, Y + cs * 0.36);
   }
   for (const f of B.fx) {
     f.t += 1 / 60;
@@ -160,7 +162,7 @@ function drawBattle() {
   B.fx = B.fx.filter(f => f.t < (f.shot ? 0.3 : 1.2));
   // очередь ходов
   const q = [s, ...B.queue.filter(alive)].filter(Boolean).slice(0, 10);
-  q.forEach((st, i) => { const X = 20 + i * 46, Y = VH - 120; c.fillStyle = B.sides[st.side].owner >= 0 ? PCOL[B.sides[st.side].owner] : '#777'; c.fillRect(X, Y, 40, 40); c.font = '26px serif'; c.fillStyle = '#000'; c.fillText(UNITS[st.u].em, X + 20, Y + 21); if (i === 0) { c.strokeStyle = '#fff'; c.lineWidth = 3; c.strokeRect(X, Y, 40, 40); } });
+  q.forEach((st, i) => { const X = 20 + i * 46, Y = VH - 120; c.fillStyle = B.sides[st.side].owner >= 0 ? pcol(B.sides[st.side].owner) : '#777'; c.fillRect(X, Y, 40, 40); c.font = '26px serif'; c.fillStyle = '#000'; c.fillText(UNITS[st.u].em, X + 20, Y + 21); if (i === 0) { c.strokeStyle = '#fff'; c.lineWidth = 3; c.strokeRect(X, Y, 40, 40); } });
 }
 
 // ---------- ввод ----------
@@ -173,14 +175,14 @@ cv.addEventListener('mousemove', e => {
 cv.addEventListener('mousedown', e => {
   audioInit();
   if (B) { if (UI.bh && e.button === 0) battleClickCell(UI.bh.cx, UI.bh.cy, UI.bh.fx, UI.bh.fy); return; }
-  if (BUSY || G.over || e.button !== 0) return;
+  if (locked() || !G || G.over || e.button !== 0) return;
   const m = cellFromMouse(e), tx = Math.floor((m.x + UI.cam.x) / TS), ty = Math.floor((m.y + UI.cam.y) / TS);
   mapClick(tx, ty);
 });
 // правый клик — проложить путь куда угодно, в том числе к своему герою для обмена
 cv.addEventListener('contextmenu', e => {
   e.preventDefault();
-  if (B || BUSY || !G || G.over) return;
+  if (B || locked() || !G || G.over) return;
   const h = selHero(), m = cellFromMouse(e), tx = Math.floor((m.x + UI.cam.x) / TS), ty = Math.floor((m.y + UI.cam.y) / TS);
   if (!h || !inMap(tx, ty) || !seen(tx, ty)) return;
   const plan = findPath(h, tx, ty);
@@ -204,14 +206,14 @@ addEventListener('keydown', e => {
   UI.keys[e.code] = true;
   if (B) { if (e.code === 'KeyW') battleWait(); if (e.code === 'KeyD') battleDefend(); if (e.code === 'KeyC') toggleSpells(); if (e.code === 'KeyA') battleAuto(); return; }
   if (e.code === 'KeyM') { musicOn = !musicOn; toast(musicOn ? 'Музыка вкл' : 'Музыка выкл'); }
-  if (!G || anyOverlay()) return;
+  if (!G || anyOverlay() || BOTTING) return;
   if (e.code === 'Enter') { e.preventDefault(); endTurn(); }
   if (e.code === 'Space') { e.preventDefault(); continuePath(); }
   if (e.code === 'KeyH') { const hs = myHeroes(G.cur); if (hs.length) { const i = hs.findIndex(x => x.id === UI.sel); selectHero(hs[(i + 1) % hs.length]); } }
 });
 addEventListener('keyup', e => { UI.keys[e.code] = false; });
 function continuePath() {
-  const h = selHero(); if (!h || BUSY) return;
+  const h = selHero(); if (!h || locked()) return;
   if (UI.plan) { moveHero(h, UI.plan); return; }
   if (h.dest) { const plan = findPath(h, h.dest.x, h.dest.y); if (plan) moveHero(h, plan); else { h.dest = null; toast('Путь закрыт'); } }
   else toast('Выберите, куда идти');
@@ -221,39 +223,40 @@ const anyOverlay = () => ['modal', 'town', 'exch', 'curtain', 'menu'].some(id =>
 // ---------- панель ----------
 function refresh() {
   if (!G) return;
-  const p = curP(), inc = dailyIncome(p.id);
+  const p = BOTTING ? viewP() : curP(), inc = dailyIncome(p.id);
   $('pName').textContent = `${FACTIONS[p.fac].em} ${p.name}`; $('pName').style.color = p.col;
-  $('pDay').textContent = `Неделя ${weekNo()}, день ${dayOfWeek()} · всего дней: ${G.day}`;
+  $('pDay').innerHTML = BOTTING ? `<b style="color:${curP().col}">🤖 Ходит: ${curP().name}…</b>` : `Неделя ${weekNo()}, день ${dayOfWeek()} · всего дней: ${G.day}`;
+  $('endBtn').disabled = BOTTING;
   $('pRes').innerHTML = RES.map(r => `<div>${RES_ICON[r]} ${p.res[r]}<small>+${inc[r]}/день</small></div>`).join('');
   $('heroList').innerHTML = myHeroes(p.id).map(h => `<div class="li ${h.id === UI.sel ? 'on' : ''}" data-h="${h.id}"><span class="em">${h.em}</span><span>${h.name}<br><small>ур. ${h.lvl}</small></span><span class="mpb"><i style="width:${Math.round(100 * h.mp / heroMaxMp(h))}%"></i></span></div>`).join('') || '<small>Героев нет — наймите в городе</small>';
   $('townList').innerHTML = myTowns(p.id).map(t => `<div class="li" data-t="${t.id}"><span class="em">🏢</span><span>${t.name}<br><small>${t.builtDay === G.day ? 'сегодня уже строили' : 'можно строить'}</small></span></div>`).join('') || '<small>Городов нет! Захватите любой за 7 дней</small>';
-  document.querySelectorAll('[data-h]').forEach(el => el.onclick = () => { if (!BUSY) selectHero(heroById(+el.dataset.h)); });
-  document.querySelectorAll('[data-t]').forEach(el => el.onclick = () => { if (!BUSY) { const t = G.objs.find(o => o.id === +el.dataset.t); openTown(t, heroAt(t.x, t.y)); } });
+  document.querySelectorAll('[data-h]').forEach(el => el.onclick = () => { if (!locked()) selectHero(heroById(+el.dataset.h)); });
+  document.querySelectorAll('[data-t]').forEach(el => el.onclick = () => { if (!locked()) { const t = G.objs.find(o => o.id === +el.dataset.t); openTown(t, heroAt(t.x, t.y)); } });
   const h = selHero();
   if (h) {
     const s = heroStats(h), nx = xpFor(h.lvl + 1), px = xpFor(h.lvl);
-    $('hCard').innerHTML = `<div style="display:flex;gap:10px;align-items:center"><span style="font-size:42px">${h.em}</span><div><b style="font-size:17px">${h.name}</b><br><small>${FACTIONS[h.fac].name} · уровень ${h.lvl}</small></div></div>
+    $('hCard').innerHTML = `<div style="display:flex;gap:10px;align-items:center"><span style="font-size:42px">${h.em}</span><div><b style="font-size:17px">${h.name}</b><br><small>${FACTIONS[h.fac].name} · уровень ${h.lvl}${SPECS[h.spec] ? `<br>★ ${SPECS[h.spec].name}: ${SPECS[h.spec].desc}` : ''}</small></div></div>
       <div class="stats"><div>⚔️${s.att}<small>атака</small></div><div>🛡️${s.def}<small>защита</small></div><div>😎${s.pow}<small>понты</small></div><div>💧${h.mana}<small>из ${maxMana(h)}</small></div></div>
       <small>Ход: ${Math.floor(h.mp)} / ${heroMaxMp(h)}</small><div class="bar"><i style="width:${100 * h.mp / heroMaxMp(h)}%;background:#6f6"></i></div>
       <small>Опыт: ${h.xp} / ${nx}</small><div class="bar"><i style="width:${100 * (h.xp - px) / (nx - px)}%;background:#fc3"></i></div>
       <div class="slots">${h.army.map(a => `<div class="slot" title="${a ? UNITS[a.u].name : ''}">${a ? UNITS[a.u].em + `<b>${a.n}</b>` : ''}</div>`).join('')}</div>
       <div class="arts">${h.arts.map(a => `<span title="${ARTS[a].name}: ${ARTS[a].desc}">${ARTS[a].em}</span>`).join('') || '<small>Артефактов нет</small>'}</div>
       ${G.heroes.filter(o => o.owner === h.owner && o !== h && Math.max(Math.abs(o.x - h.x), Math.abs(o.y - h.y)) <= 1).map(o => `<button class="sec" data-ex="${o.id}" style="margin-top:6px">🤝 Обмен с ${o.name}</button>`).join('')}`;
-    document.querySelectorAll('[data-ex]').forEach(el => el.onclick = () => { if (!BUSY) openExchange(h, heroById(+el.dataset.ex)); });
+    document.querySelectorAll('[data-ex]').forEach(el => el.onclick = () => { if (!locked()) openExchange(h, heroById(+el.dataset.ex)); });
   } else $('hCard').innerHTML = '<small>Выберите героя</small>';
-  $('goBtn').disabled = !h || (!h.dest && !UI.plan);
+  $('goBtn').disabled = BOTTING || !h || (!h.dest && !UI.plan);
 }
-$('endBtn').onclick = () => endTurn();
+$('endBtn').onclick = () => { if (!BOTTING) endTurn(); };
 $('goBtn').onclick = () => continuePath();
 
 // ---------- миникарта ----------
 const mini = $('mini'), mc = mini.getContext('2d');
 function drawMini() {
-  const k = mini.width / MW, p = G.players[G.cur];
+  const k = mini.width / MW, p = viewP();
   mc.fillStyle = '#000'; mc.fillRect(0, 0, mini.width, mini.height);
   for (let y = 0; y < MH; y++) for (let x = 0; x < MW; x++) { if (!p.seen[y * MW + x]) continue; mc.fillStyle = ['#7b7464', '#55555e', '#3f7a36', '#2f6fb0', '#9a9a92', '#a52a2a', '#1e4524'][tileAt(x, y)]; mc.fillRect(x * k, y * k, k, k); }
-  for (const o of G.objs) if ((o.t === 'town' || o.t === 'mine') && p.seen[o.y * MW + o.x]) { mc.fillStyle = o.owner >= 0 ? PCOL[o.owner] : '#fff'; const s = o.t === 'town' ? 3 : 2; mc.fillRect(o.x * k - s, o.y * k - s, k + s * 2, k + s * 2); }
-  for (const h of G.heroes) if (p.seen[h.y * MW + h.x]) { mc.fillStyle = PCOL[h.owner]; mc.beginPath(); mc.arc(h.x * k + k / 2, h.y * k + k / 2, 3, 0, 7); mc.fill(); mc.strokeStyle = '#000'; mc.stroke(); }
+  for (const o of G.objs) if ((o.t === 'town' || o.t === 'mine') && p.seen[o.y * MW + o.x]) { mc.fillStyle = o.owner >= 0 ? pcol(o.owner) : '#fff'; const s = o.t === 'town' ? 3 : 2; mc.fillRect(o.x * k - s, o.y * k - s, k + s * 2, k + s * 2); }
+  for (const h of G.heroes) if (p.seen[h.y * MW + h.x]) { mc.fillStyle = pcol(h.owner); mc.beginPath(); mc.arc(h.x * k + k / 2, h.y * k + k / 2, 3, 0, 7); mc.fill(); mc.strokeStyle = '#000'; mc.stroke(); }
   mc.strokeStyle = '#fff'; mc.lineWidth = 1; mc.strokeRect(UI.cam.x / TS * k, UI.cam.y / TS * k, VW / TS * k, VH / TS * k);
 }
 mini.addEventListener('mousedown', e => { const r = mini.getBoundingClientRect(); centerOn(Math.floor((e.clientX - r.left) / r.width * MW), Math.floor((e.clientY - r.top) / r.height * MH)); });

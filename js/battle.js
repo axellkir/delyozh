@@ -7,8 +7,12 @@ const OBST = ['🗑️', '🚗', '🛢️', '📦', '🚧'];
 
 function runBattle(cfg) {
   return new Promise(resolve => {
-    const side = (c, i) => ({ i, hero: c.hero, owner: c.owner, fence: !!c.fence, st: c.hero ? heroStats(c.hero) : { att: 0, def: 0, pow: 0, spd: 0 }, castRound: 0, auto: c.owner < 0 || !!window.AUTOBATTLE, src: c.army });
-    B = { title: cfg.title, sides: [side(cfg.a, 0), side(cfg.d, 1)], stacks: [], obst: new Set(), round: 0, queue: [], active: null, log: [], fx: [], hover: null, spell: null, resolve, over: false, wait: null };
+    // за сторону ходит ИИ, если это местные, бот или прикидка боя; понтами ИИ пользуется только у ботов не ниже обычного
+    const side = (c, i) => ({ i, hero: c.hero, owner: c.owner, fence: !!c.fence, st: c.hero ? heroStats(c.hero) : { att: 0, def: 0, pow: 0, spd: 0 }, castRound: 0, auto: c.owner < 0 || !!window.AUTOBATTLE || !!cfg.sim || isBot(c.owner), aiCast: !!c.hero && (cfg.sim ? true : isBot(c.owner) && DIFF[G.players[c.owner].diff].spells), src: c.army });
+    const sides = [side(cfg.a, 0), side(cfg.d, 1)];
+    // бой без людей не показываем: он считается мгновенно
+    const quick = !!cfg.sim || (sides[0].auto && sides[1].auto);
+    B = { quick, sim: !!cfg.sim, speed0: SPEED, title: cfg.title, sides, stacks: [], obst: new Set(), round: 0, queue: [], active: null, log: [], fx: [], hover: null, spell: null, resolve, over: false, wait: null };
     for (let i = 0; i < 2; i++) {
       const arr = B.sides[i].src.map((s, slot) => s && s.n > 0 ? { slot, u: s.u, n: s.n } : null).filter(Boolean);
       arr.forEach((s, k) => {
@@ -18,7 +22,7 @@ function runBattle(cfg) {
     }
     B.stacks.forEach(s => { s.px = s.x; s.py = s.y; });
     for (let k = rnd(3, 6); k > 0; k--) B.obst.add(`${rnd(2, BW - 3)},${rnd(0, BH - 1)}`);
-    battleUI(true); sfx('battle');
+    if (quick) SPEED = 0; else { battleUI(true); sfx('battle'); }
     battleLoop();
   });
 }
@@ -100,6 +104,7 @@ async function battleLoop() {
   while (!B.over) {
     if (!B.queue.length) {
       B.round++;
+      if (B.round > 80) { endBattle(1); return; } // патовая драка: нападавшие расходятся ни с чем
       B.stacks.forEach(s => { s.ret = 1; s.defd = false; s.waited = false; });
       B.queue = B.stacks.filter(alive).sort((a, b) => sSpd(b) - sSpd(a) || a.side - b.side);
       blog(`— Раунд ${B.round} —`);
@@ -119,14 +124,31 @@ function endBattle(winner) {
   B.over = true;
   const out = i => { const arr = [null, null, null, null, null]; B.stacks.filter(s => s.side === i && alive(s)).forEach(s => { arr[s.slot] = { u: s.u, n: s.n }; }); return arr; };
   const r = { winner, aArmy: out(0), dArmy: out(1) };
-  const res = B.resolve; battleUI(false); B = null; sfx(winner === 0 ? 'win' : 'lose');
+  const res = B.resolve, quick = B.quick; SPEED = B.speed0;
+  if (!quick) battleUI(false);
+  B = null; if (!quick) sfx(winner === 0 ? 'win' : 'lose');
   res(r);
 }
 
 // ---------- ИИ ----------
 const worth = u => { const U = UNITS[u]; return U.hp * (U.att + U.def + 4) * (U.shots ? 1.4 : 1); };
 function scoreHit(a, t, ranged) { const [lo, hi] = dmgRange(a, t, ranged); return Math.min((lo + hi) / 2, pool(t)) / UNITS[t.u].hp * worth(t.u); }
+// ИИ и понты: выбирает самое выгодное из «Наезда», «Стрелки» и «Заряженной воды», если оно того стоит
+async function aiCast(s) {
+  const sd = B.sides[s.side], h = sd.hero;
+  if (!sd.aiCast || !canCast(sd)) return;
+  const p = sd.st.pow, en = enemiesOf(s), opts = [];
+  const hurt = (t, d) => Math.min(d, pool(t)) / UNITS[t.u].hp * worth(t.u);
+  if (h.mana >= 5) { const t = en.reduce((b, e) => (hurt(e, 12 + 10 * p) > hurt(b, 12 + 10 * p) ? e : b)); opts.push({ id: 'naezd', t, v: hurt(t, 12 + 10 * p) / 5 }); }
+  if (h.mana >= 12 && en.length >= 3) opts.push({ id: 'strelka', t: null, v: en.reduce((a, e) => a + hurt(e, 6 + 5 * p), 0) / 12 });
+  if (h.mana >= 6) for (const t of B.stacks) if (alive(t) && t.side === s.side) { const lost = t.n0 * UNITS[t.u].hp - pool(t), heal = Math.min(lost, 20 + 10 * p); if (heal >= UNITS[t.u].hp) opts.push({ id: 'voda', t, v: heal / UNITS[t.u].hp * worth(t.u) / 6 }); }
+  if (!opts.length) return;
+  const best = opts.reduce((a, b) => (b.v > a.v ? b : a));
+  if (best.v * 5 < worth(s.u) * 0.5) return; // мелочь не стоит понтов
+  await castSpell(SPELLS.find(x => x.id === best.id), best.t);
+}
 async function aiTurn(s) {
+  if (enemiesOf(s).length) await aiCast(s);
   const en = enemiesOf(s);
   if (!en.length) return;
   if (canShoot(s)) { const t = en.reduce((b, e) => (scoreHit(s, e, true) > scoreHit(s, b, true) ? e : b)); await strike(s, t, true); return; }

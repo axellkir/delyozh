@@ -42,7 +42,7 @@
   button:disabled { background: #554a5a; color: #9a8fa0; border-color: #333; cursor: default; filter: none; }
   button.sec { background: #3a2c42; color: #f2ecdf; border-color: #241a2a; }
   #endBtn { width: 100%; font-size: 18px; padding: 10px; }
-  #mini { width: 100%; image-rendering: pixelated; cursor: pointer; display: block; }
+  #mini { width: 210px; margin: 6px auto; image-rendering: pixelated; cursor: pointer; display: block; }
   #toast { position: fixed; left: calc(50% - 150px); top: 18px; transform: translateX(-50%); background: rgba(0,0,0,.82); border: 2px solid var(--gold); border-radius: 10px; padding: 8px 16px; font-weight: bold; opacity: 0; transition: opacity .25s; pointer-events: none; z-index: 50; max-width: 60vw; text-align: center; }
   .ov { position: fixed; inset: 0; background: rgba(10,4,16,.78); display: flex; align-items: center; justify-content: center; z-index: 30; }
   .ov[hidden] { display: none; }
@@ -51,17 +51,23 @@
   #mBody { font-size: 17px; margin-bottom: 16px; max-width: 620px; }
   #curtain { background: #0d0610; flex-direction: column; cursor: pointer; z-index: 40; }
   #curtain .big { font-size: 84px; transform: rotate(-3deg); }
-  #menu { background: radial-gradient(#3a1630, #0d0610); flex-direction: column; z-index: 45; }
-  #menu h1 { font-size: 110px; margin: 0; color: var(--gold); transform: rotate(-3deg); }
-  #menu .sub { font-size: 24px; color: #0ff; margin-bottom: 20px; }
-  .pset { display: flex; gap: 14px; margin: 10px 0 18px; }
-  .pcard { width: 230px; padding: 12px; border-radius: 12px; background: #241a2a; border: 3px solid; }
-  .pcard input { width: 100%; box-sizing: border-box; font: inherit; font-size: 17px; font-weight: bold; padding: 6px; border-radius: 6px; border: 0; margin: 6px 0; }
-  .facs { display: flex; flex-direction: column; gap: 4px; }
-  .fac { padding: 6px 8px; border-radius: 8px; background: #3a2c42; cursor: pointer; font-size: 13px; border: 2px solid transparent; }
-  .fac b { font-size: 15px; display: block; }
-  .fac.on { border-color: var(--gold); background: #4a3a10; }
-  .pcard.off { opacity: .35; }
+  #menu { background: radial-gradient(#3a1630, #0d0610); flex-direction: column; justify-content: safe center; overflow: auto; padding: 10px 0; z-index: 45; }
+  #menu h1 { font-size: 72px; line-height: 1; margin: 0; color: var(--gold); transform: rotate(-3deg); }
+  #menu .sub { font-size: 20px; color: #0ff; margin: 6px 0 4px; }
+  .pset { display: grid; grid-template-columns: repeat(3, 300px); gap: 10px; margin: 8px 0 10px; }
+  .pcard { padding: 8px 10px; border-radius: 12px; background: #241a2a; border: 3px solid; display: flex; flex-direction: column; gap: 5px; min-height: 96px; }
+  .pcard small { color: #c9bcd2; font-size: 12px; line-height: 1.25; min-height: 15px; }
+  .pcard input { width: 100%; box-sizing: border-box; font: inherit; font-size: 16px; font-weight: bold; padding: 4px 6px; border-radius: 6px; border: 0; }
+  .pcard.off { opacity: .5; }
+  .phead { display: flex; align-items: center; justify-content: space-between; font-size: 16px; }
+  .poff { flex: 1; display: flex; flex-direction: column; align-items: center; justify-content: center; color: #9a8fa0; text-align: center; }
+  .seg { display: flex; gap: 3px; }
+  .seg span { padding: 3px 7px; border-radius: 7px; background: #3a2c42; cursor: pointer; font-size: 13px; border: 2px solid transparent; white-space: nowrap; text-align: center; }
+  .seg span:hover { background: #4b3a55; }
+  .seg span.on { border-color: var(--gold); background: #4a3a10; }
+  .seg.wide span { flex: 1 1 0; min-width: 0; padding: 3px 2px; font-size: 12px; overflow: hidden; text-overflow: ellipsis; }
+  .seg.heroes span { font-size: 20px; padding: 1px 0; }
+  #lobbyNote { color: #c9bcd2; font-size: 14px; margin-bottom: 8px; min-height: 19px; }
   #town .box, #exch .box { max-width: 1100px; width: 92vw; max-height: 92vh; overflow: auto; }
   .tgrid { display: grid; grid-template-columns: repeat(5, 1fr); gap: 8px; margin: 8px 0 14px; }
   .bcard { background: #2a2030; border-radius: 10px; padding: 8px; font-size: 13px; border: 2px solid #3d3046; display: flex; flex-direction: column; gap: 4px; }
@@ -124,14 +130,13 @@
 
 <div id="menu" class="ov">
   <h1 class="fun st">ДЕЛЁЖ</h1>
-  <div class="sub fun st">Москва, 90-е. Три бригады, один город. Ходим по очереди.</div>
-  <div class="btns" style="margin-bottom:6px"><button id="m2" class="sec">2 игрока</button><button id="m3">3 игрока</button></div>
+  <div class="sub fun st">Москва, 90-е. До шести бригад, один город. Ходим по очереди.</div>
   <div class="pset" id="pset"></div>
+  <div id="lobbyNote"></div>
   <div class="btns"><button id="newBtn" style="font-size:22px;padding:12px 26px">🎲 Новая игра</button><button id="contBtn" class="sec" style="font-size:22px;padding:12px 26px">💾 Продолжить</button></div>
-  <div style="margin-top:18px;max-width:900px;text-align:center;color:#c9bcd2;font-size:14px">
-    Цель — остаться единственной бригадой: захватить чужие города и разбить чужих героев.<br>
-    Каждый день город приносит бабло, раз в неделю появляются новые бойцы. Ларьки, бензоколонки и стройки дают ресурсы — их охраняет местная шпана.<br>
-    В центре — Кремль: там лежит Ключ от Кремля, но его охраняет полк. Игра сохраняется сама в конце каждого хода.
+  <div style="margin-top:12px;max-width:820px;text-align:center;color:#c9bcd2;font-size:13px">
+    Цель — остаться единственной бригадой: захватить чужие города и разбить чужих героев. Город каждый день приносит бабло, по понедельникам приходят новые бойцы.<br>
+    В центре — Кремль с Ключом, его охраняет полк. Боты ходят сами; если бот нападёт на человека, игра позовёт его к компьютеру. Партия сохраняется в конце каждого хода.
   </div>
   <div id="ver" style="position:absolute;right:14px;bottom:10px;font-size:12px;color:#7d6f87"></div>
 </div>
@@ -141,6 +146,7 @@
 <script src="js/map.js"></script>
 <script src="js/game.js"></script>
 <script src="js/battle.js"></script>
+<script src="js/ai.js"></script>
 <script src="js/sound.js"></script>
 <script src="js/ui.js"></script>
 <script src="js/screens.js"></script>
