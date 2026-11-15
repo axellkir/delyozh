@@ -2,7 +2,7 @@
 // Отрисовка карты и боя, мышь и клавиатура, боковая панель, миникарта.
 
 const TS = 48;
-const UI = { sel: null, plan: null, cam: { x: 0, y: 0 }, hover: null, keys: {}, mouse: null };
+const UI = { sel: null, plan: null, cam: { x: 0, y: 0 }, hover: null, keys: {}, mouse: null, hpos: {}, fx: [] };
 const cv = $('cv'), ctx = cv.getContext('2d');
 let VW = 800, VH = 600, DPR = 1, terr = null;
 function resize() {
@@ -15,6 +15,7 @@ addEventListener('resize', resize); resize();
 function prerender() {
   terr = document.createElement('canvas'); terr.width = MW * TS; terr.height = MH * TS;
   const g = terr.getContext('2d'), msk = G.map === 'msk';
+  UI.hpos = {}; UI.fx = [];
   g.textAlign = 'center'; g.textBaseline = 'middle';
   for (let y = 0; y < MH; y++) for (let x = 0; x < MW; x++) {
     const t = tileAt(x, y), X = x * TS, Y = y * TS, h = hash2(x, y, 5);
@@ -95,6 +96,14 @@ function objLabel(o) {
   if (o.t === 'mob') { const n = armyCount(o.army), s = o.army.find(Boolean); return `${o.boss ? 'Кремлёвский полк' : sizeWord(n) + ': ' + UNITS[s.u].name.toLowerCase()} (${n < 5 ? '1–4' : n < 10 ? '5–9' : n < 20 ? '10–19' : n < 50 ? '20–49' : '50+'})`; }
   return '';
 }
+// флажок владельца: полотнище из трёх полосок, которые колышутся по очереди
+function mapFlag(c, x, y, col, t) {
+  c.fillStyle = '#1a1320'; c.fillRect(x - 1, y - 1, 3, 24);
+  c.fillStyle = '#c8c8d0'; c.fillRect(x, y, 1, 22);
+  for (let i = 0; i < 3; i++) { const dy = Math.round(Math.sin(t / 170 + i * 1.3) * 1.5); c.fillStyle = '#1a1320'; c.fillRect(x + 1 + i * 4, y + dy - 1, 5, 10); c.fillStyle = col; c.fillRect(x + 1 + i * 4, y + dy, 4, 8); }
+}
+// всплывающая подпись над клеткой карты
+function mapFloat(x, y, text, col) { if (BOTTING && !viewP().seen[y * MW + x]) return; UI.fx.push({ x, y, text, col: col || '#fff', t: 0 }); if (UI.fx.length > 30) UI.fx.shift(); }
 // подпись под точкой на карте
 function mapTag(c, text, x, y, big) {
   c.font = big ? 'bold 14px "Trebuchet MS", sans-serif' : 'bold 11px "Trebuchet MS", sans-serif';
@@ -114,12 +123,12 @@ function drawMap() {
     if (o.x < x0 - 1 || o.x > x1 + 1 || o.y < y0 - 1 || o.y > y1 + 1 || !seen(o.x, o.y)) continue;
     const X = o.x * TS + TS / 2, Y = o.y * TS + TS / 2;
     if (o.t === 'town') {
-      c.fillStyle = o.owner >= 0 ? pcol(o.owner) : '#ddd'; c.fillRect(X - 26, Y - 30, 52, 8);
+      c.fillStyle = o.owner >= 0 ? pcol(o.owner) : '#ddd'; c.fillRect(X - 26, Y - 30, 52, 6); mapFlag(c, X + 18, Y - 44, o.owner >= 0 ? pcol(o.owner) : '#e8e8e8', now + o.id * 97);
       drawSprite(c, 't_' + o.fac, X, Y - 2, 48, 0);
       if (o.dist) mapTag(c, o.name, X, Y + 30, true);
       continue;
     }
-    if (o.t === 'mine' || o.t === 'town') { c.fillStyle = o.owner >= 0 ? pcol(o.owner) : '#eee'; c.fillRect(X + 8, Y - 22, 12, 9); c.fillStyle = '#222'; c.fillRect(X + 7, Y - 22, 2, 22); }
+    if (o.t === 'mine') mapFlag(c, X + 14, Y - 26, o.owner >= 0 ? pcol(o.owner) : '#e8e8e8', now + o.id * 97);
     if (o.nm && seen(o.x, o.y)) mapTag(c, o.lb || o.nm.split(':')[0], X, Y + 31);
     if (o.t === 'art') { c.fillStyle = `rgba(255,220,60,${0.25 + 0.15 * Math.sin(now / 300)})`; c.beginPath(); c.arc(X, Y, 20, 0, 7); c.fill(); }
     if (o.t === 'mob') { c.fillStyle = 'rgba(200,30,30,.35)'; c.beginPath(); c.arc(X, Y, 21, 0, 7); c.fill(); drawSprite(c, o.army.find(Boolean).u, X, Y - 1, o.boss ? 48 : 40, o.id); continue; }
@@ -139,11 +148,19 @@ function drawMap() {
   // герои
   for (const o of G.heroes) {
     if (!seen(o.x, o.y)) continue;
-    const X = o.x * TS + TS / 2, Y = o.y * TS + TS / 2, inTown = !!townAt(o.x, o.y), dx = inTown ? 14 : 0, dy = inTown ? 12 : 0;
+    // герой не прыгает с клетки на клетку, а идёт: рисуем его там, куда он успел дойти, и покачиваем на ходу
+    const P = UI.hpos[o.id] || (UI.hpos[o.id] = { x: o.x, y: o.y });
+    if (Math.abs(o.x - P.x) > 3 || Math.abs(o.y - P.y) > 3) { P.x = o.x; P.y = o.y; } else { P.x += (o.x - P.x) * 0.3; P.y += (o.y - P.y) * 0.3; }
+    const walking = Math.abs(o.x - P.x) + Math.abs(o.y - P.y) > 0.04;
+    const X = P.x * TS + TS / 2, Y = P.y * TS + TS / 2 - (walking ? Math.abs(Math.sin(now / 75)) * 5 : 0), inTown = !walking && !!townAt(o.x, o.y), dx = inTown ? 14 : 0, dy = inTown ? 12 : 0;
     if (o.id === UI.sel) { c.strokeStyle = '#ffd21a'; c.lineWidth = 3; c.beginPath(); c.arc(X + dx, Y + dy, 21 + Math.sin(now / 180) * 2, 0, 7); c.stroke(); }
     c.fillStyle = pcol(o.owner); c.beginPath(); c.arc(X + dx, Y + dy, 17, 0, 7); c.fill(); c.strokeStyle = '#000'; c.lineWidth = 2; c.stroke();
-    drawSprite(c, 'h_' + o.name, X + dx, Y + dy - 1, 32, o.id);
+    drawSprite(c, 'h_' + o.name, X + dx, Y + dy - 1, 32, walking ? now / 110 : o.id);
   }
+  // всплывающие подписи: что подобрали, что захватили
+  c.font = 'bold 16px "Trebuchet MS", sans-serif';
+  for (const f of UI.fx) { f.t += 1 / 60; if (!seen(f.x, f.y)) continue; const X = f.x * TS + TS / 2, Y = f.y * TS - f.t * 34; c.globalAlpha = Math.max(0, 1 - f.t / 1.3); c.lineWidth = 3; c.strokeStyle = 'rgba(18,14,24,.9)'; c.strokeText(f.text, X, Y); c.fillStyle = f.col; c.fillText(f.text, X, Y); }
+  c.globalAlpha = 1; UI.fx = UI.fx.filter(f => f.t < 1.3);
   // туман
   c.fillStyle = '#000';
   for (let y = y0; y <= y1; y++) for (let x = x0; x <= x1; x++) if (!seen(x, y)) c.fillRect(x * TS - 0.5, y * TS - 0.5, TS + 1, TS + 1);
@@ -159,13 +176,34 @@ function drawMap() {
 
 // ---------- бой ----------
 function battleGeom() { const cs = Math.min((VW - 40) / BW, (VH - 190) / BH, 92); return { cs, ox: (VW - cs * BW) / 2, oy: 56 + (VH - 190 - cs * BH) / 2 }; }
+// Пол поля боя: рисуется один раз в мелком масштабе (16 точек на клетку) и растягивается без сглаживания
+function arenaFloor(id) {
+  const A = ARENAS[id] || ARENAS.yard, cv2 = document.createElement('canvas'); cv2.width = BW * 16; cv2.height = BH * 16;
+  const g = cv2.getContext('2d'), px = (x, y, col, w, h) => { g.fillStyle = col; g.fillRect(x, y, w || 1, h || 1); };
+  for (let cy = 0; cy < BH; cy++) for (let cx = 0; cx < BW; cx++) {
+    const X = cx * 16, Y = cy * 16; px(X, Y, A.floor[(cx + cy) % 2], 16, 16);
+    for (let i = 0; i < 9; i++) {
+      const hx = Math.floor(hash2(cx * 7 + i, cy, 11) * 16), hy = Math.floor(hash2(cx, cy * 5 + i, 23) * 16), r = hash2(cx + i * 3, cy + i, 31);
+      if (A.deco === 'grass') px(X + hx, Y + hy, r < 0.5 ? '#2e6a2a' : r < 0.92 ? '#4c8f40' : r < 0.96 ? '#ffd21a' : '#f4f4f4', 1, r < 0.5 ? 2 : 1);
+      else if (A.deco === 'dirt') px(X + hx, Y + hy, r < 0.6 ? 'rgba(0,0,0,.14)' : r < 0.9 ? 'rgba(255,255,255,.08)' : '#4c8f40', r < 0.3 ? 2 : 1, 1);
+      else if (A.deco === 'road' || A.deco === 'concrete') px(X + hx, Y + hy, r < 0.7 ? 'rgba(0,0,0,.16)' : 'rgba(255,255,255,.07)', r < 0.25 ? 3 : 1, 1);
+    }
+    if (A.deco === 'planks') { for (let j = 0; j < 16; j += 4) px(X, Y + j, 'rgba(0,0,0,.2)', 16, 1); px(X + (cy % 2 ? 5 : 11), Y, 'rgba(0,0,0,.2)', 1, 16); }
+    if (A.deco === 'mats') { px(X, Y, 'rgba(255,255,255,.12)', 16, 1); px(X, Y, 'rgba(255,255,255,.12)', 1, 16); px(X + 7, Y + 7, 'rgba(255,255,255,.1)', 2, 2); }
+    if (A.deco === 'cobble') for (let j = 0; j < 16; j += 4) for (let i = 0; i < 16; i += 4) { px(X + i + (j % 8 ? 2 : 0), Y + j, 'rgba(0,0,0,.2)', 1, 4); px(X + i, Y + j, 'rgba(0,0,0,.18)', 4, 1); if (hash2(cx * 4 + i, cy * 4 + j, 5) < 0.2) px(X + i + 1, Y + j + 1, 'rgba(255,255,255,.08)', 2, 2); }
+    if (A.deco === 'concrete' && hash2(cx, cy, 77) < 0.18) px(X + 3, Y + 9, 'rgba(60,110,170,.35)', 9, 3); // лужа
+  }
+  if (A.deco === 'road') for (let x = 4; x < BW * 16; x += 16) px(x, BH * 8 - 1, '#d8c060', 8, 2); // разметка посередине
+  return cv2;
+}
 function drawBattle() {
   const c = ctx, { cs, ox, oy } = battleGeom(), now = performance.now();
   c.setTransform(DPR, 0, 0, DPR, 0, 0);
   c.fillStyle = '#2a2530'; c.fillRect(0, 0, VW, VH);
   if (B.shake > 0.4) { c.translate((Math.random() - 0.5) * B.shake, (Math.random() - 0.5) * B.shake); B.shake *= 0.86; } // тряска от крепких ударов и взрывов
-  c.fillStyle = '#4a4a50'; c.fillRect(ox, oy, cs * BW, cs * BH);
-  c.strokeStyle = 'rgba(255,255,255,.12)'; c.lineWidth = 1;
+  if (!B.bg) B.bg = arenaFloor(B.arena);
+  c.imageSmoothingEnabled = false; c.drawImage(B.bg, ox, oy, cs * BW, cs * BH);
+  c.strokeStyle = 'rgba(255,255,255,.09)'; c.lineWidth = 1;
   for (let x = 0; x <= BW; x++) { c.beginPath(); c.moveTo(ox + x * cs, oy); c.lineTo(ox + x * cs, oy + cs * BH); c.stroke(); }
   for (let y = 0; y <= BH; y++) { c.beginPath(); c.moveTo(ox, oy + y * cs); c.lineTo(ox + cs * BW, oy + y * cs); c.stroke(); }
   c.textAlign = 'center'; c.textBaseline = 'middle';
@@ -182,16 +220,23 @@ function drawBattle() {
     }
   }
   c.font = Math.round(cs * 0.6) + 'px serif';
-  for (const k of B.obst) { const [x, y] = k.split(',').map(Number); const q = (x * 3 + y) % OBST_SPR.length, id = B.barrels.has(k) ? 'o_barrel' : B.fences.has(k) ? 'o_fence' : OBST_SPR[q]; drawSprite(c, id, ox + x * cs + cs / 2, oy + y * cs + cs / 2, Math.floor(cs * 0.8 / 16) * 16 || 16, 0); }
+  for (const k of B.obst) { const [x, y] = k.split(',').map(Number); drawSprite(c, obstSprite(k), ox + x * cs + cs / 2, oy + y * cs + cs / 2, Math.floor(cs * 0.8 / 16) * 16 || 16, 0); }
   for (const st of B.stacks) {
-    if (!alive(st)) continue;
+    if (!alive(st)) { // павший отряд заваливается и тает
+      if (st.dead > 0) { c.save(); c.globalAlpha = st.dead; c.translate(ox + st.px * cs + cs / 2, oy + st.py * cs + cs / 2 + (1 - st.dead) * cs * 0.2); c.rotate((st.side ? -1 : 1) * (1 - st.dead) * 1.4); if (st.side === 1) c.scale(-1, 1); drawSprite(c, st.u, 0, 0, Math.floor(cs * 0.8 / 16) * 16 || 16, 0); c.restore(); st.dead -= 0.035; }
+      continue;
+    }
+    const walking = Math.abs(st.x - st.px) + Math.abs(st.y - st.py) > 0.04;
     st.px += (st.x - st.px) * 0.35; st.py += (st.y - st.py) * 0.35;
     let X = ox + st.px * cs + cs / 2, Y = oy + st.py * cs + cs / 2; const own = B.sides[st.side].owner;
-    if (st.lunge) { st.lunge.t += 0.075; const q = Math.sin(Math.PI * Math.min(1, st.lunge.t)) * 0.38 * cs; X += st.lunge.dx * q; Y += st.lunge.dy * q; if (st.lunge.t >= 1) st.lunge = null; } // выпад при ударе
+    let tilt = 0;
+    if (st.lunge) { st.lunge.t += 0.075; const q = Math.sin(Math.PI * Math.min(1, st.lunge.t)); X += st.lunge.dx * q * 0.38 * cs; Y += st.lunge.dy * q * 0.38 * cs; tilt = q * 0.3; if (st.lunge.t >= 1) st.lunge = null; } // выпад при ударе
+    if (walking) Y -= Math.abs(Math.sin(now / 70 + st.id)) * cs * 0.07;              // подпрыгивают на ходу
+    if (st.flash > 0) X += Math.sin(st.flash * 22) * st.flash * cs * 0.06;            // отдача от попадания
     if (st === s) { c.strokeStyle = '#ffd21a'; c.lineWidth = 4; c.beginPath(); c.arc(X, Y, cs * 0.44 + Math.sin(now / 150) * 2, 0, 7); c.stroke(); }
     c.fillStyle = own >= 0 ? pcol(own) : '#8a8a8a'; c.globalAlpha = 0.55; c.beginPath(); c.arc(X, Y, cs * 0.4, 0, 7); c.fill(); c.globalAlpha = 1;
-    c.save(); c.translate(X, Y); if (st.side === 1) c.scale(-1, 1);
-    drawSprite(c, st.u, 0, -cs * 0.04, Math.floor(cs * 0.8 / 16) * 16 || 16, st.id); c.restore();
+    c.save(); c.translate(X, Y); if (st.side === 1) c.scale(-1, 1); if (tilt) c.rotate(tilt);
+    drawSprite(c, st.u, 0, -cs * 0.04, Math.floor(cs * 0.8 / 16) * 16 || 16, walking ? now / 110 : st.id); c.restore();
     if (st.flash > 0) { c.fillStyle = `rgba(255,40,40,${st.flash * 0.5})`; c.beginPath(); c.arc(X, Y, cs * 0.4, 0, 7); c.fill(); st.flash = Math.max(0, st.flash - 0.05); }
     if (st.defd) drawSprite(c, 'i_def', X - cs * 0.32, Y - cs * 0.3, 16, 0);
     const label = String(st.n); c.font = `bold ${Math.round(cs * 0.22)}px sans-serif`;
@@ -203,6 +248,10 @@ function drawBattle() {
     c.globalAlpha = Math.max(0, 1 - f.t / 1.2); c.font = `bold ${Math.round(cs * 0.28)}px sans-serif`; c.fillStyle = '#000'; c.fillText(f.text, ox + f.x * cs + cs / 2 + 2, oy + f.y * cs - f.t * 40 + 2); c.fillStyle = f.col; c.fillText(f.text, ox + f.x * cs + cs / 2, oy + f.y * cs - f.t * 40); c.globalAlpha = 1;
   }
   B.fx = B.fx.filter(f => f.t < (f.shot ? 0.3 : 1.2));
+  // частицы — квадратные, под пиксельную графику
+  const ps = Math.max(3, Math.round(cs * 0.07));
+  for (const p of B.parts) { p.x += p.vx; p.y += p.vy; p.vy += p.g; p.life -= p.d; c.globalAlpha = Math.max(0, p.life); c.fillStyle = p.col; c.fillRect(Math.round(ox + p.x * cs - ps / 2), Math.round(oy + p.y * cs - ps / 2), ps, ps); }
+  c.globalAlpha = 1; B.parts = B.parts.filter(p => p.life > 0);
   // очередь ходов
   const q = [s, ...B.queue.filter(alive)].filter(Boolean).slice(0, 10);
   q.forEach((st, i) => { const X = 20 + i * 46, Y = VH - 120; c.fillStyle = B.sides[st.side].owner >= 0 ? pcol(B.sides[st.side].owner) : '#777'; c.fillRect(X, Y, 40, 40); drawSprite(c, st.u, X + 20, Y + 20, 32, 0); if (i === 0) { c.strokeStyle = '#fff'; c.lineWidth = 3; c.strokeRect(X, Y, 40, 40); } });

@@ -194,12 +194,12 @@ async function enterTile(h, last, action) {
   if (!o) return false;
   const p = G.players[h.owner];
   if (o.t === 'pile') {
-    p.res[o.res] += o.amt; sfx('coin'); toast(`${RES_NAME[o.res]}: +${o.amt}`);
+    p.res[o.res] += o.amt; sfx('coin'); toast(`${RES_NAME[o.res]}: +${o.amt}`); mapFloat(o.x, o.y, `+${o.amt}`, { gold: '#7dff7d', fuel: '#ff8a7a', brick: '#ffb070' }[o.res]);
     removeObj(o); return false;
   }
   if (o.t === 'mine') {
     if (o.owner !== h.owner && simPeace(o.owner)) { if (last) toast('Чужую точку сегодня не отжать: все ходят одновременно', true); return false; }
-    if (o.owner !== h.owner) { if (o.owner >= 0) notify(o.owner, `${p.name} отжали у вас точку: ${mineOf(o).name}.${botLine(h.owner, 'mine')}`); o.owner = h.owner; reveal(h.owner, o.x, o.y, 3); sfx('flag'); toast(`${mineOf(o).name} — теперь ваша точка: +${mineOf(o).amt} ${RES_GEN[MINE[o.kind].res]} в день`); log(`${p.name} взяли точку: ${mineOf(o).name}`); }
+    if (o.owner !== h.owner) { if (o.owner >= 0) notify(o.owner, `${p.name} отжали у вас точку: ${mineOf(o).name}.${botLine(h.owner, 'mine')}`); o.owner = h.owner; reveal(h.owner, o.x, o.y, 3); sfx('flag'); mapFloat(o.x, o.y, 'наша точка!', pcol(h.owner)); toast(`${mineOf(o).name} — теперь ваша точка: +${mineOf(o).amt} ${RES_GEN[MINE[o.kind].res]} в день`); log(`${p.name} взяли точку: ${mineOf(o).name}`); }
     return false;
   }
   if (o.t === 'town') {
@@ -252,7 +252,7 @@ function xpFromKills(before, after) {
 }
 async function fightMob(h, mob) {
   const before = mob.army.map(s => s && { ...s });
-  const r = await runBattle({ a: { army: h.army, hero: h, owner: h.owner }, d: { army: mob.army, hero: null, owner: -1 }, title: 'Разборка с местными' });
+  const r = await runBattle({ a: { army: h.army, hero: h, owner: h.owner }, d: { army: mob.army, hero: null, owner: -1 }, title: 'Разборка с местными', arena: arenaAt(mob.x, mob.y, null, mob.boss) });
   const p = G.players[h.owner];
   if (r.winner === 0) {
     h.army = r.aArmy; removeObj(mob);
@@ -274,7 +274,7 @@ async function fightHero(h, o, inTown) {
     centerOn(o.x, o.y);
     await ask(`${ico('i_att', 24)} Наезд!`, `<b style="color:${G.players[o.owner].col}">${G.players[o.owner].name}</b>, к компьютеру! Бот ${h.name} (${G.players[h.owner].name}) напал на героя ${o.name}.<br>У них: ${armyText(h.army)}.`, ['К бою'], { pid: o.owner });
   }
-  const r = await runBattle({ a: { army: h.army, hero: h, owner: h.owner }, d: { army: o.army, hero: o, owner: o.owner, fence: !!(t && t.built.fence) }, title: `${G.players[h.owner].name} против ${G.players[o.owner].name}` });
+  const r = await runBattle({ a: { army: h.army, hero: h, owner: h.owner }, d: { army: o.army, hero: o, owner: o.owner, fence: !!(t && t.built.fence) }, title: `${G.players[h.owner].name} против ${G.players[o.owner].name}`, arena: arenaAt(o.x, o.y, t) });
   h.army = r.aArmy; o.army = r.dArmy;
   const [win, lose, bL] = r.winner === 0 ? [h, o, bD] : [o, h, bA];
   const arts = lose.arts.slice();
@@ -306,7 +306,7 @@ async function siege(h, t) {
   }
   {
     const before = t.garrison.map(s => s && { ...s });
-    const r = await runBattle({ a: { army: h.army, hero: h, owner: h.owner }, d: { army: t.garrison, hero: null, owner: t.owner, fence: !!t.built.fence }, title: `Штурм: ${t.name}` });
+    const r = await runBattle({ a: { army: h.army, hero: h, owner: h.owner }, d: { army: t.garrison, hero: null, owner: t.owner, fence: !!t.built.fence }, title: `Штурм: ${t.name}`, arena: arenaAt(t.x, t.y, t) });
     h.army = r.aArmy; t.garrison = militia ? [null, null, null, null, null] : r.dArmy;
     if (r.winner !== 0) { if (t.owner >= 0) notify(t.owner, `${h.name} (${p.name}) штурмовал ваш город ${t.name} и полёг под стенами.`); await heroDies(h, `полёг под стенами ${t.name}`); return; }
     await giveXp(h, xpFromKills(before, r.dArmy));

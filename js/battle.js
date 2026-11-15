@@ -3,7 +3,33 @@
 
 const BW = 11, BH = 8;
 let B = null;
-const OBST_SPR = ['o_bin', 'champ', 'o_crate', 'o_crate', 'o_barrier'];
+// Поле боя зависит от места драки: свой пол и свой хлам, за которым можно укрыться от выстрелов
+const ARENAS = {
+  street: { name: 'улица', floor: ['#4a4a52', '#45454d'], deco: 'road', obst: ['champ', 'o_barrier', 'o_bin', 'champ'] },
+  yard: { name: 'двор', floor: ['#6d6a5c', '#676456'], deco: 'dirt', obst: ['o_bin', 'o_garage', 'o_bench', 'o_crate'] },
+  park: { name: 'парк', floor: ['#3f7a36', '#3a7331'], deco: 'grass', obst: ['tree1', 'tree2', 'o_bench', 'tree1'] },
+  market: { name: 'рынок', floor: ['#7a6a52', '#74644c'], deco: 'planks', obst: ['stall', 'o_bags', 'o_crate', 'o_bags'] },
+  gym: { name: 'качалка', floor: ['#2f4a6b', '#2b4564'], deco: 'mats', obst: ['o_rack', 'b_att', 'o_crate', 'o_rack'] },
+  basement: { name: 'подвал', floor: ['#3d3944', '#38343f'], deco: 'concrete', obst: ['amp', 'o_pipe', 'o_crate', 'amp'] },
+  kremlin: { name: 'Красная площадь', floor: ['#5c5762', '#56515c'], deco: 'cobble', obst: ['tree1', 'o_barrier', 'tree1', 'o_barrier'] },
+};
+// town — город, который штурмуют; boss — кремлёвский полк
+function arenaAt(x, y, town, boss) {
+  if (boss) return 'kremlin';
+  if (town) return { kach: 'gym', rynok: 'market', neform: 'basement' }[town.fac] || 'yard';
+  const t = tileAt(x, y);
+  return t === T.ROAD ? 'street' : t === T.PARK ? 'park' : 'yard';
+}
+const obstSprite = k => { if (B.barrels.has(k)) return 'o_barrel'; if (B.fences.has(k)) return 'o_fence'; const [x, y] = k.split(',').map(Number), list = ARENAS[B.arena].obst; return list[(x * 3 + y) % list.length]; };
+// цель за укрытием, если между ней и стрелком вплотную стоит препятствие (бочка не в счёт): выстрелы вдвое слабее
+function covered(a, t) { const k = `${t.x + Math.sign(a.x - t.x)},${t.y + Math.sign(a.y - t.y)}`; return B.obst.has(k) && !B.barrels.has(k); }
+// частицы: искры от удара, дым, звёздочки фарта. x, y — в клетках
+function burst(x, y, n, cols, o) {
+  if (!B || B.quick) return;
+  o = o || {};
+  for (let i = 0; i < n; i++) { const a = Math.random() * 6.283, v = (o.v || 0.05) * (0.4 + Math.random()); B.parts.push({ x: x + 0.5 + (Math.random() - 0.5) * 0.3, y: y + 0.5 + (Math.random() - 0.5) * 0.3, vx: Math.cos(a) * v, vy: Math.sin(a) * v - (o.up || 0), g: o.g == null ? 0.004 : o.g, life: 1, d: 0.02 + Math.random() * 0.03, col: cols[i % cols.length] }); }
+  if (B.parts.length > 300) B.parts.splice(0, B.parts.length - 300);
+}
 
 function runBattle(cfg) {
   return new Promise(resolve => {
@@ -13,7 +39,7 @@ function runBattle(cfg) {
     const sides = [side(cfg.a, 0), side(cfg.d, 1)];
     // бой без людей не показываем: он считается мгновенно
     const quick = !!cfg.sim || (sides[0].auto && sides[1].auto);
-    B = { quick, need: -1, cmdWait: null, sim: !!cfg.sim, speed0: SPEED, title: cfg.title, sides, stacks: [], obst: new Set(), round: 0, queue: [], active: null, log: [], fx: [], hover: null, spell: null, resolve, over: false, wait: null };
+    B = { quick, arena: ARENAS[cfg.arena] ? cfg.arena : 'yard', parts: [], bg: null, need: -1, cmdWait: null, sim: !!cfg.sim, speed0: SPEED, title: cfg.title, sides, stacks: [], obst: new Set(), round: 0, queue: [], active: null, log: [], fx: [], hover: null, spell: null, resolve, over: false, wait: null };
     for (let i = 0; i < 2; i++) {
       const arr = B.sides[i].src.map((s, slot) => s && s.n > 0 ? { slot, u: s.u, n: s.n } : null).filter(Boolean);
       arr.forEach((s, k) => {
@@ -25,7 +51,7 @@ function runBattle(cfg) {
     // при штурме города с забором поперёк поля стоит забор с воротами посередине: пешим — только через ворота
     B.barrels = new Set(); B.fences = new Set(); B.shake = 0;
     if (cfg.d.fence) for (let y = 0; y < BH; y++) if (y !== 3 && y !== 4) { B.obst.add(`${BW - 3},${y}`); B.fences.add(`${BW - 3},${y}`); }
-    for (let k = rnd(3, 6); k > 0; k--) B.obst.add(`${rnd(2, BW - 4)},${rnd(0, BH - 1)}`);
+    for (let k = rnd(5, 8); k > 0; k--) B.obst.add(`${rnd(2, BW - 4)},${rnd(0, BH - 1)}`);
     // одна-две бочки с бензином: выстрел по бочке — взрыв по всем соседним клеткам
     { const loose = [...B.obst].filter(k => !B.fences.has(k)); for (let k = rnd(1, 2); k > 0 && loose.length; k--) B.barrels.add(loose.splice(rnd(0, loose.length - 1), 1)[0]); }
     if (quick) SPEED = 0; else { battleUI(true); sfx('battle'); }
@@ -77,6 +103,7 @@ function dmgRange(a, t, ranged, moved) {
   let m = A >= D ? Math.min(3, 1 + 0.05 * (A - D)) : Math.max(0.3, 1 - 0.025 * (D - A));
   if (U.shots && !ranged) m *= 0.5;
   if (ranged && cheb(a, t) > 6) m *= 0.5;
+  if (ranged && covered(a, t)) m *= 0.5;
   if (U.swarm) m *= 1 + 0.15 * Math.min(3, B.stacks.filter(e => alive(e) && e !== a && e.side === a.side && cheb(e, t) <= 1).length);
   if (U.finish && !ranged && t.ret <= 0 && !UNITS[t.u].guard) m *= 1.4;
   if (U.charge && !ranged) m *= 1 + 0.08 * Math.min(5, moved == null ? a.moved : moved);
@@ -87,7 +114,7 @@ const pool = s => (s.n - 1) * UNITS[s.u].hp + s.hp;
 function applyDmg(t, dmg) {
   const H = UNITS[t.u].hp, before = t.n;
   let p = pool(t) - dmg;
-  if (p <= 0) { t.n = 0; t.hp = 0; } else { t.n = Math.ceil(p / H); t.hp = p - (t.n - 1) * H; }
+  if (p <= 0) { t.n = 0; t.hp = 0; t.dead = 1; burst(t.x, t.y, 12, ['#c8c8d0', '#8a8a96', '#4a4a55'], { v: 0.06, g: -0.001 }); } else { t.n = Math.ceil(p / H); t.hp = p - (t.n - 1) * H; }
   t.flash = 1;
   return before - t.n;
 }
@@ -107,11 +134,12 @@ async function strike(a, t, ranged, main) {
   const crit = Math.random() < Math.min(0.25, 0.07 + 0.02 * sd.st.pow); // фарт: чем больше понтов у героя, тем чаще
   if (crit) dmg = Math.round(dmg * 1.5);
   const k = applyDmg(t, dmg); sfx(k ? 'kill' : 'hit');
+  burst(t.x, t.y, crit ? 14 : 6, crit ? ['#ffd21a', '#fff', '#f08a2c'] : ['#ff5050', '#c8372d', '#f08a2c'], { v: crit ? 0.09 : 0.06 });
   floatText(t, `${crit ? 'ФАРТ! ' : ''}−${dmg}${k ? ' · легло ' + k : ''}`, crit ? '#ffd21a' : '#ff5050');
   if (crit || !alive(t)) B.shake = Math.max(B.shake, crit ? 7 : 5);
   blog(`${sName(a)} ${ranged ? 'стреляют в' : 'бьют'} ${sName(t)}: ${dmg} урона${crit ? ' (фарт!)' : ''}${k ? `, полегло ${k}` : ''}`);
   if (main && alive(t)) {
-    if (U.curse && !t.curse) { t.curse = 3; floatText(t, 'сглаз: −3 атаки', '#d9a8ff', 0.35); }
+    if (U.curse && !t.curse) { t.curse = 3; burst(t.x, t.y, 8, ['#b97cf5', '#5b2d91'], { v: 0.03, up: 0.02, g: 0 }); floatText(t, 'сглаз: −3 атаки', '#d9a8ff', 0.35); }
     if (U.slow && !t.slow) { t.slow = 2; floatText(t, 'замедлены', '#9cf', 0.35); }
     if (U.stun && Math.random() < 0.25) { t.stun = true; floatText(t, 'проверка!', '#ffcc66', 0.35); }
   }
@@ -136,6 +164,7 @@ const barrelDmg = () => 20 + 12 * weekNo();
 async function explode(x, y) {
   const key = `${x},${y}`; if (!B.barrels.has(key)) return;
   B.barrels.delete(key); B.obst.delete(key); sfx('kill'); B.shake = 12;
+  burst(x, y, 34, ['#ffb020', '#ffd21a', '#f08a2c', '#4a4a55'], { v: 0.16, g: 0.002 });
   B.fx.push({ x, y, text: 'БАБАХ!', col: '#ffb020', t: 0 }); blog('Бочка с бензином рванула!');
   const d = barrelDmg();
   for (const e of B.stacks) if (alive(e) && Math.max(Math.abs(e.x - x), Math.abs(e.y - y)) <= 1) { const k = applyDmg(e, d); floatText(e, `−${d}${k ? ' · легло ' + k : ''}`, '#ffb020', 0.2); }
@@ -149,7 +178,7 @@ function healAlly(s) {
   const t = B.stacks.filter(e => alive(e) && e.side === s.side && e !== s && lost(e) > 0).sort((a, b) => lost(b) - lost(a))[0];
   if (!t) return;
   const H = UNITS[t.u].hp, np = pool(t) + Math.min(lost(t), 10 + 5 * s.n);
-  t.n = Math.ceil(np / H); t.hp = np - (t.n - 1) * H; floatText(t, 'зарядили', '#7dff7d'); blog(`${sName(s)} заряжают ${sName(t)}`);
+  t.n = Math.ceil(np / H); t.hp = np - (t.n - 1) * H; floatText(t, 'зарядили', '#7dff7d'); burst(t.x, t.y, 8, ['#7dff7d', '#4cc552'], { v: 0.02, up: 0.03, g: 0 }); blog(`${sName(s)} заряжают ${sName(t)}`);
 }
 
 async function battleLoop() {
@@ -339,6 +368,8 @@ function castOn(t) {
 async function castSpell(sp, t) {
   const s = B.active, sd = B.sides[s.side], p = sd.st.pow;
   sd.hero.mana -= sp.cost; sd.castRound = B.round; B.spell = null; B.busy = true; sfx('spell');
+  if (t) burst(t.x, t.y, 10, sp.id === 'naezd' ? ['#ff9030', '#c8372d'] : sp.id === 'krysha' ? ['#6cf', '#2f7fc4'] : ['#7dff7d', '#8fdcf5'], { v: 0.05, up: sp.id === 'naezd' ? 0 : 0.03, g: sp.id === 'naezd' ? 0.004 : 0 });
+  else for (const e of enemiesOf(s)) burst(e.x, e.y, 6, ['#ffd21a', '#fff'], { v: 0.07 });
   if (sp.id === 'naezd') { const d = 12 + 10 * p, k = applyDmg(t, d); floatText(t, `−${d}${k ? ' · легло ' + k : ''}`, '#ff9030'); blog(`${sd.hero.name}: «Наезд» на ${sName(t)}: ${d}`); }
   if (sp.id === 'krysha') { t.buff += 6; floatText(t, 'крыша +6', '#6cf'); blog(`${sd.hero.name} дал крышу: ${sName(t)}`); }
   if (sp.id === 'voda') { const H = UNITS[t.u].hp, np = Math.min(t.n0 * H, pool(t) + 20 + 10 * p); t.n = Math.ceil(np / H); t.hp = np - (t.n - 1) * H; floatText(t, 'подлечили', '#6f6'); blog(`${sd.hero.name} зарядил воду для ${sName(t)}`); }
@@ -361,7 +392,7 @@ function hoverInfo(cx, cy) {
   if (t.side !== s.side && humanSide(s)) {
     const ranged = canShoot(s), ap = ranged ? null : attackCell(s, t, cx + 0.5, cy + 0.5), [lo, hi] = dmgRange(s, t, ranged, ap ? ap.length : 0), H = U.hp;
     const kill = d => Math.min(t.n, d >= pool(t) ? t.n : t.n - Math.ceil((pool(t) - d) / H));
-    txt += `<br>${ranged ? 'выстрел' : 'удар'}: <b>${lo}–${hi}</b> урона, ляжет ${kill(lo)}–${kill(hi)}`;
+    txt += `<br>${ranged ? 'выстрел' : 'удар'}: <b>${lo}–${hi}</b> урона, ляжет ${kill(lo)}–${kill(hi)}${ranged && covered(s, t) ? ' · цель за укрытием, урон вдвое меньше' : ''}`;
   }
   return txt;
 }
