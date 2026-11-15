@@ -8,12 +8,15 @@
 <style>
   :root { --gold: #ffd21a; --panel: #1b1420; --line: #4a3a52; }
   html, body { margin: 0; height: 100%; overflow: hidden; background: #000; color: #f2ecdf; font: 15px/1.35 -apple-system, "Segoe UI", Roboto, sans-serif; user-select: none; -webkit-user-select: none; }
-  .fun { font-family: "Comic Sans MS", "Chalkboard SE", "Marker Felt", cursive; }
+  /* Press Start 2P — пиксельный шрифт с кириллицей (SIL OFL, лицензия в assets/fonts) */
+  @font-face { font-family: "Press Start 2P"; src: url(assets/fonts/press-start-2p-cyrillic-400-normal.woff2) format("woff2"); unicode-range: U+0301, U+0400-045F, U+0490-0491, U+04B0-04B1, U+2116; font-display: swap; }
+  @font-face { font-family: "Press Start 2P"; src: url(assets/fonts/press-start-2p-latin-400-normal.woff2) format("woff2"); unicode-range: U+0000-00FF, U+2013-2014, U+2018-201D, U+2022, U+2026, U+00AB, U+00BB; font-display: swap; }
+  .fun { font-family: "Press Start 2P", "Courier New", monospace; line-height: 1.5; letter-spacing: 0; }
   .st { text-shadow: 2px 2px 0 #000, -2px 2px 0 #000, 2px -2px 0 #000, -2px -2px 0 #000; }
   #cv { position: fixed; left: 0; top: 0; }
   #side { position: fixed; right: 0; top: 0; bottom: 0; width: 300px; background: var(--panel); border-left: 3px solid var(--line); display: flex; flex-direction: column; overflow: hidden; }
   #side > div { padding: 8px 12px; border-bottom: 1px solid var(--line); }
-  #pName { font-size: 22px; font-weight: bold; }
+  #pName { font-size: 13px; }
   #pDay { color: #b9a9c4; font-size: 13px; }
   #pRes { display: flex; gap: 12px; font-size: 17px; font-weight: bold; }
   #pRes small { display: block; font-size: 11px; color: #9fd89f; font-weight: normal; }
@@ -24,7 +27,7 @@
   .li .em { font-size: 22px; }
   .li .mpb { margin-left: auto; width: 44px; height: 6px; background: #000; border-radius: 3px; overflow: hidden; }
   .li .mpb i { display: block; height: 100%; background: #6f6; }
-  h3 { margin: 0 0 6px; font-size: 13px; color: #b9a9c4; text-transform: uppercase; letter-spacing: 1px; }
+  h3 { margin: 0 0 6px; font-size: 9px; color: #b9a9c4; text-transform: uppercase; letter-spacing: 1px; }
   #hCard { flex: 1; overflow: auto; }
   .stats { display: grid; grid-template-columns: repeat(4, 1fr); gap: 4px; text-align: center; font-weight: bold; margin: 6px 0; }
   .stats div { background: #2a2030; border-radius: 6px; padding: 3px 0; }
@@ -38,6 +41,7 @@
   .slot.sel { border-color: var(--gold); background: #4a3a10; }
   .arts { display: flex; flex-wrap: wrap; gap: 4px; margin-top: 6px; font-size: 22px; }
   .btns { display: flex; gap: 6px; flex-wrap: wrap; }
+  h3 { font-family: "Press Start 2P", monospace; }
   button { font: inherit; font-weight: bold; color: #1b1420; background: var(--gold); border: 0; border-bottom: 3px solid #a07c00; border-radius: 8px; padding: 7px 12px; cursor: pointer; }
   button:hover { filter: brightness(1.1); }
   button:disabled { background: #554a5a; color: #9a8fa0; border-color: #333; cursor: default; filter: none; }
@@ -48,14 +52,14 @@
   .ov { position: fixed; inset: 0; background: rgba(10,4,16,.78); display: flex; align-items: center; justify-content: center; z-index: 30; }
   .ov[hidden] { display: none; }
   .box { background: var(--panel); border: 3px solid var(--gold); border-radius: 18px 6px 22px 8px; padding: 18px 22px; max-width: 760px; box-shadow: 0 10px 40px #000; }
-  #mTitle { font-size: 26px; color: var(--gold); margin-bottom: 8px; }
+  #mTitle { font-size: 15px; color: var(--gold); margin-bottom: 12px; }
   #mBody { font-size: 17px; margin-bottom: 16px; max-width: 620px; }
   #curtain { background: #0d0610; flex-direction: column; cursor: pointer; z-index: 40; }
-  #curtain .big { font-size: 84px; transform: rotate(-3deg); }
+  #curtain .big { font-size: 40px; transform: rotate(-3deg); }
   #menu { background: radial-gradient(#3a1630, #0d0610); flex-direction: column; justify-content: safe center; overflow: auto; padding: 10px 0; z-index: 45; }
-  #menu h1 { font-size: 72px; line-height: 1; margin: 0; color: var(--gold); transform: rotate(-3deg); }
-  #menu .sub { font-size: 20px; color: #0ff; margin: 6px 0 4px; }
-  .pset { display: grid; grid-template-columns: repeat(3, 300px); gap: 10px; margin: 8px 0 10px; }
+  #menu h1 { font-size: 56px; line-height: 1.2; margin: 0; color: var(--gold); transform: rotate(-3deg); }
+  #menu .sub { font-size: 11px; color: #0ff; margin: 10px 0 6px; }
+  .pset { display: grid; grid-template-columns: repeat(3, 330px); gap: 10px; margin: 8px 0 10px; }
   .pcard { padding: 8px 10px; border-radius: 12px; background: #241a2a; border: 3px solid; display: flex; flex-direction: column; gap: 5px; min-height: 96px; }
   .pcard small { color: #c9bcd2; font-size: 12px; line-height: 1.25; min-height: 15px; }
   .pcard input { width: 100%; box-sizing: border-box; font: inherit; font-size: 16px; font-weight: bold; padding: 4px 6px; border-radius: 6px; border: 0; }
@@ -95,7 +99,7 @@
   .army { flex: 1; min-width: 300px; }
   #bui { position: fixed; left: 0; top: 0; bottom: 0; right: 300px; pointer-events: none; z-index: 20; }
   #bui[hidden] { display: none; }
-  #bTop { position: absolute; left: 0; right: 0; top: 10px; text-align: center; font-size: 20px; font-weight: bold; }
+  #bTop { position: absolute; left: 0; right: 0; top: 10px; text-align: center; font-size: 11px; font-weight: bold; }
   #bInfo { position: absolute; left: 0; right: 0; bottom: 74px; text-align: center; font-size: 16px; min-height: 22px; }
   #bLog { position: absolute; left: 14px; bottom: 12px; font-size: 13px; color: #d8cce0; line-height: 1.35; }
   #bBtns { position: absolute; right: 14px; bottom: 14px; display: flex; gap: 8px; pointer-events: auto; }
@@ -141,7 +145,7 @@
 <div id="modal" class="ov" hidden><div class="box"><div id="mTitle" class="fun"></div><div id="mBody"></div><div id="mBtns" class="btns"></div></div></div>
 <div id="town" class="ov" hidden><div class="box" id="townBox"></div></div>
 <div id="exch" class="ov" hidden><div class="box" id="exchBox"></div></div>
-<div id="curtain" class="ov" hidden><div class="big fun st" id="cName"></div><div class="fun st" style="font-size:28px;margin-top:14px" id="cSub"></div><div class="fun" style="font-size:22px;margin-top:40px;color:#aaa">остальные — отвернулись! клик, чтобы начать ход</div></div>
+<div id="curtain" class="ov" hidden><div class="big fun st" id="cName"></div><div class="fun st" style="font-size:13px;margin-top:18px" id="cSub"></div><div class="fun" style="font-size:11px;margin-top:40px;color:#aaa">остальные — отвернулись! клик, чтобы начать ход</div></div>
 
 <div id="menu" class="ov">
   <h1 class="fun st">ДЕЛЁЖ</h1>

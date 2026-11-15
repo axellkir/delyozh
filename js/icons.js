@@ -67,6 +67,15 @@ const ICONS = {
   o_bin: ['...dddddddddd', '..NNNNNNNNNNNN', '..NnNnNnNnNnNN', '..NnNnNnNnNnNN', '..NnNnNnNnNnNN', '..NnNnNnNnNnNN', '..NNNNNNNNNNNN', '..d..........d'],
   o_barrel: ['....rrrrrrrr', '...rrrrrrrrrr', '...yyyyyyyyyy', '...rrrrrrrrrr', '...rrrkkrrrrr', '...rrrrrrrrrr', '...yyyyyyyyyy', '...rrrrrrrrrr', '....rrrrrrrr'],
   o_crate: ['..TTTTTTTTTTTT', '..TssssssssssT', '..TsTssssssTsT', '..TssTssssTssT', '..TsssTTTTsssT', '..TsssTTTTsssT', '..TssTssssTssT', '..TsTssssssTsT', '..TssssssssssT', '..TTTTTTTTTTTT'],
+  o_fence: ['.d.d.d.d.d.d.d', 'd.d.d.d.d.d.d.d', '..gggggggggggg', '..gGggggggGggg', '..gggggggggggg', '..ggggGggggggG', '..gggggggggggg', '..gGgggggGgggg', '..gggggggggggg', '..GGGGGGGGGGGG'],
+  // ---- характеристики ----
+  i_att: ['............gg', '...........gwg', '..........gwg', '.........gwg', '........gwg', '.......gwg', '..T...gwg', '..TT.gwg', '...TTTg', '....TT', '...T.TT', '..T...T'],
+  i_def: ['..bbbbbbbbbb', '..bwwwwbbbbb', '..bwbbbbbbbb', '..bwbbbbbbbb', '..bbbbbbbbbb', '...bbbbbbbb', '...bbbbbbbb', '....bbbbbb', '.....bbbb', '......bb'],
+  i_pow: ['.gggggg..gggggg', '.gDDDDggggDDDDg', '.gDwDDg..gDwDDg', '.gDDDDg..gDDDDg', '..gggg....gggg'],
+  i_mana: ['.......b', '......bbb', '......bbb', '.....bbbbb', '....bbcbbbb', '....bcbbbbb', '....bbbbbbb', '.....bbbbb', '......bbb'],
+  i_hp: ['..rrr...rrr', '.rrwrr.rrrrr', '.rwrrrrrrrrr', '.rrrrrrrrrrr', '..rrrrrrrrr', '...rrrrrrr', '....rrrrr', '.....rrr', '......r'],
+  i_spd: ['.....www', '.....wwww', '.....wwww', '.....wwwww', '....wwwwwwww', '..wwwwwwwwwwww', '..wrwrwwwwwwww', '..DDDDDDDDDDDD'],
+  i_shot: ['....rrrrrr', '..rrwwwwwwrr', '.rwwrrrrrrwwr', '.rwrwwwwwwrwr', '.rwrwrrrrwrwr', '.rwrwrrrrwrwr', '.rwrwwwwwwrwr', '.rwwrrrrrrwwr', '..rrwwwwwwrr', '....rrrrrr'],
   o_barrier: ['.rrwwrrwwrrwwrr', '.rwwrrwwrrwwrrw', '.wwrrwwrrwwrrww', '..d..........d', '..d..........d', '.ddd........ddd'],
 };
 // Герои — тот же манекен, что у бойцов (js/sprites.js), со своей внешностью

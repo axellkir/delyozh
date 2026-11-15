@@ -87,7 +87,9 @@ async function netJoin(code) {
 function netEnter(d) {
   NET.on = true; NET.code = d.code; NET.v = 0; NET.sv = 0; NET.auth = false; NET.shown = false; NET.room = null; NET.mine = new Set(); NET.view = null;
   try { history.replaceState(null, '', '?room=' + d.code); } catch (e) { /* не страшно */ }
-  netRoom(d); netLoop();
+  netRoom(d);
+  NET.v = 0; // первый опрос должен ответить сразу и принести партию, если она уже идёт
+  netLoop();
 }
 function netLeave() {
   NET.on = false; NET.code = ''; NET.room = null; NET.auth = false; NET.loopId++; NET.mine = new Set(); clearTimeout(NET.timer); NET.timer = null;

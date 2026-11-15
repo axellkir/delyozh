@@ -167,6 +167,7 @@ function drawBattle() {
   const c = ctx, { cs, ox, oy } = battleGeom(), now = performance.now();
   c.setTransform(DPR, 0, 0, DPR, 0, 0);
   c.fillStyle = '#2a2530'; c.fillRect(0, 0, VW, VH);
+  if (B.shake > 0.4) { c.translate((Math.random() - 0.5) * B.shake, (Math.random() - 0.5) * B.shake); B.shake *= 0.86; } // тряска от крепких ударов и взрывов
   c.fillStyle = '#4a4a50'; c.fillRect(ox, oy, cs * BW, cs * BH);
   c.strokeStyle = 'rgba(255,255,255,.12)'; c.lineWidth = 1;
   for (let x = 0; x <= BW; x++) { c.beginPath(); c.moveTo(ox + x * cs, oy); c.lineTo(ox + x * cs, oy + cs * BH); c.stroke(); }
@@ -185,17 +186,18 @@ function drawBattle() {
     }
   }
   c.font = Math.round(cs * 0.6) + 'px serif';
-  for (const k of B.obst) { const [x, y] = k.split(',').map(Number); const q = (x * 3 + y) % OBST.length; if (!drawSprite(c, OBST_SPR[q], ox + x * cs + cs / 2, oy + y * cs + cs / 2, Math.floor(cs * 0.8 / 16) * 16 || 16, 0)) c.fillText(OBST[q], ox + x * cs + cs / 2, oy + y * cs + cs / 2); }
+  for (const k of B.obst) { const [x, y] = k.split(',').map(Number); const q = (x * 3 + y) % OBST.length, id = B.barrels.has(k) ? 'o_barrel' : B.fences.has(k) ? 'o_fence' : OBST_SPR[q]; if (!drawSprite(c, id, ox + x * cs + cs / 2, oy + y * cs + cs / 2, Math.floor(cs * 0.8 / 16) * 16 || 16, 0)) c.fillText(OBST[q], ox + x * cs + cs / 2, oy + y * cs + cs / 2); }
   for (const st of B.stacks) {
     if (!alive(st)) continue;
     st.px += (st.x - st.px) * 0.35; st.py += (st.y - st.py) * 0.35;
-    const X = ox + st.px * cs + cs / 2, Y = oy + st.py * cs + cs / 2, own = B.sides[st.side].owner;
+    let X = ox + st.px * cs + cs / 2, Y = oy + st.py * cs + cs / 2; const own = B.sides[st.side].owner;
+    if (st.lunge) { st.lunge.t += 0.075; const q = Math.sin(Math.PI * Math.min(1, st.lunge.t)) * 0.38 * cs; X += st.lunge.dx * q; Y += st.lunge.dy * q; if (st.lunge.t >= 1) st.lunge = null; } // выпад при ударе
     if (st === s) { c.strokeStyle = '#ffd21a'; c.lineWidth = 4; c.beginPath(); c.arc(X, Y, cs * 0.44 + Math.sin(now / 150) * 2, 0, 7); c.stroke(); }
     c.fillStyle = own >= 0 ? pcol(own) : '#8a8a8a'; c.globalAlpha = 0.55; c.beginPath(); c.arc(X, Y, cs * 0.4, 0, 7); c.fill(); c.globalAlpha = 1;
     c.save(); c.translate(X, Y); if (st.side === 1) c.scale(-1, 1);
     if (!drawSprite(c, st.u, 0, -cs * 0.04, Math.floor(cs * 0.8 / 16) * 16 || 16, st.id)) { c.font = Math.round(cs * 0.58) + 'px serif'; c.fillText(UNITS[st.u].em, 0, 2); } c.restore();
     if (st.flash > 0) { c.fillStyle = `rgba(255,40,40,${st.flash * 0.5})`; c.beginPath(); c.arc(X, Y, cs * 0.4, 0, 7); c.fill(); st.flash = Math.max(0, st.flash - 0.05); }
-    if (st.defd) { c.font = Math.round(cs * 0.25) + 'px serif'; c.fillText('🛡️', X - cs * 0.32, Y - cs * 0.3); }
+    if (st.defd && !drawSprite(c, 'i_def', X - cs * 0.32, Y - cs * 0.3, 16, 0)) { c.font = Math.round(cs * 0.25) + 'px serif'; c.fillText('🛡️', X - cs * 0.32, Y - cs * 0.3); }
     const label = String(st.n); c.font = `bold ${Math.round(cs * 0.22)}px sans-serif`;
     const w = c.measureText(label).width + 8; c.fillStyle = own >= 0 ? pcol(own) : '#666'; c.fillRect(X + cs * 0.42 - w, Y + cs * 0.22, w, cs * 0.26); c.fillStyle = '#000'; c.fillText(label, X + cs * 0.42 - w / 2, Y + cs * 0.36);
   }
@@ -214,7 +216,7 @@ function drawBattle() {
 function cellFromMouse(e) { const r = cv.getBoundingClientRect(); return { x: e.clientX - r.left, y: e.clientY - r.top }; }
 cv.addEventListener('mousemove', e => {
   UI.mouse = cellFromMouse(e);
-  if (B) { const { cs, ox, oy } = battleGeom(), fx = (UI.mouse.x - ox) / cs, fy = (UI.mouse.y - oy) / cs; UI.bh = fx >= 0 && fy >= 0 && fx < BW && fy < BH ? { cx: Math.floor(fx), cy: Math.floor(fy), fx, fy } : null; $('bInfo').textContent = UI.bh ? hoverInfo(UI.bh.cx, UI.bh.cy) : ''; return; }
+  if (B) { const { cs, ox, oy } = battleGeom(), fx = (UI.mouse.x - ox) / cs, fy = (UI.mouse.y - oy) / cs; UI.bh = fx >= 0 && fy >= 0 && fx < BW && fy < BH ? { cx: Math.floor(fx), cy: Math.floor(fy), fx, fy } : null; $('bInfo').innerHTML = UI.bh ? hoverInfo(UI.bh.cx, UI.bh.cy) : ''; return; }
   UI.hover = { x: Math.floor((UI.mouse.x + UI.cam.x) / TS), y: Math.floor((UI.mouse.y + UI.cam.y) / TS) };
 });
 cv.addEventListener('mousedown', e => {
@@ -282,7 +284,7 @@ function refresh() {
   if (h) {
     const s = heroStats(h), nx = xpFor(h.lvl + 1), px = xpFor(h.lvl);
     $('hCard').innerHTML = `<div style="display:flex;gap:10px;align-items:center"><span style="font-size:42px">${heroIco(h, 56)}</span><div><b style="font-size:17px">${h.name}</b><br><small>${FACTIONS[h.fac].name} · уровень ${h.lvl}${SPECS[h.spec] ? `<br>★ ${SPECS[h.spec].name}: ${SPECS[h.spec].desc}` : ''}</small></div></div>
-      <div class="stats"><div>⚔️${s.att}<small>атака</small></div><div>🛡️${s.def}<small>защита</small></div><div>😎${s.pow}<small>понты</small></div><div>💧${h.mana}<small>из ${maxMana(h)}</small></div></div>
+      <div class="stats"><div>${ico('i_att', 18, '⚔️')}${s.att}<small>атака</small></div><div>${ico('i_def', 18, '🛡️')}${s.def}<small>защита</small></div><div>${ico('i_pow', 18, '😎')}${s.pow}<small>понты</small></div><div>${ico('i_mana', 18, '💧')}${h.mana}<small>из ${maxMana(h)}</small></div></div>
       <small>Ход: ${Math.floor(h.mp)} / ${heroMaxMp(h)}</small><div class="bar"><i style="width:${100 * h.mp / heroMaxMp(h)}%;background:#6f6"></i></div>
       <small>Опыт: ${h.xp} / ${nx}</small><div class="bar"><i style="width:${100 * (h.xp - px) / (nx - px)}%;background:#fc3"></i></div>
       <div class="slots">${h.army.map(a => `<div class="slot" title="${a ? UNITS[a.u].name : ''}">${a ? unitIcon(a.u, 40) + `<b>${a.n}</b>` : ''}</div>`).join('')}</div>
