@@ -175,6 +175,27 @@
   .jc .jf b { color: #9fd89f; }
   .jc .late { color: #ff9a8a; font-weight: bold; }
   .jempty { color: #9a8fa0; font-size: 13px; margin: 0 0 16px; }
+  /* ---------- инструкция и подсказки ---------- */
+  #guide { z-index: 48; }
+  .gbox { width: min(720px, 92vw); max-width: none; max-height: 90vh; overflow-y: auto; }
+  .gpics { display: flex; gap: 14px; justify-content: center; margin-bottom: 10px; }
+  .gpics img.spr { background: #2a2030; border-radius: 10px; padding: 6px; }
+  .gt { font-size: 15px; color: var(--gold); text-align: center; margin-bottom: 10px; }
+  .gx { font-size: 15px; line-height: 1.5; }
+  .gx p { margin: 0 0 10px; }
+  .gx b { color: #fff3b0; }
+  .keys { width: 100%; border-collapse: collapse; margin-bottom: 10px; font-size: 14px; }
+  .keys td { padding: 4px 8px; border-bottom: 1px solid var(--line); vertical-align: top; }
+  .keys td:first-child { color: #fff3b0; font-weight: bold; white-space: nowrap; width: 1%; }
+  .gnav { display: flex; justify-content: space-between; align-items: center; gap: 12px; margin-top: 8px; flex-wrap: wrap; }
+  .gdots { display: flex; gap: 6px; }
+  .gdots span { width: 11px; height: 11px; border-radius: 50%; background: #4a3a52; cursor: pointer; }
+  .gdots span.on { background: var(--gold); }
+  #tip { position: fixed; left: 16px; top: 76px; width: 340px; z-index: 35; background: var(--panel); border: 3px solid var(--gold); border-radius: 12px; padding: 10px 12px; box-shadow: 0 8px 26px #000; font-size: 14px; }
+  #tip[hidden] { display: none; }
+  #tip.intown { z-index: 36; top: auto; bottom: 20px; left: 20px; }
+  #tip.inb { top: 70px; }
+  #tip p { margin: 6px 0 8px; color: #e4dbe9; line-height: 1.4; }
   /* ---------- обмен между героями ---------- */
   #exch .box { width: min(760px, 94vw); }
   .row { display: flex; gap: 16px; align-items: flex-start; flex-wrap: wrap; }
@@ -232,7 +253,7 @@
   <div id="sFoot">
     <div class="row2"><button id="goBtn" class="sec" title="Продолжить путь (Пробел)">Путь</button><button id="endBtn">Конец хода</button></div>
     <canvas id="mini" width="176" height="176"></canvas>
-    <div id="help">Клик — путь, второй клик — идти. ПКМ по своему герою — встреча. WASD — карта, H — герой, M — музыка. <a href="#" id="menuLink" style="color:#0ff">Меню</a> · <a href="#" id="guideLink" style="color:#0ff">Карта PNG</a></div>
+    <div id="help">Клик — путь, второй клик — идти. ПКМ по своему герою — встреча. WASD — карта, H — герой, M — музыка. <a href="#" id="helpLink" style="color:#0ff">Как играть</a> · <a href="#" id="menuLink" style="color:#0ff">Меню</a> · <a href="#" id="guideLink" style="color:#0ff">Карта PNG</a></div>
   </div>
 </div>
 
@@ -258,6 +279,8 @@
 <div id="exch" class="ov" hidden><div class="box" id="exchBox"></div></div>
 <div id="curtain" class="ov" hidden><div class="big fun st" id="cName"></div><div class="fun st" style="font-size:13px;margin-top:18px" id="cSub"></div><div class="fun" style="font-size:11px;margin-top:40px;color:#aaa">остальные — отвернулись! клик, чтобы начать ход</div></div>
 
+<div id="guide" class="ov" hidden><div class="box gbox" id="gBox"></div></div>
+<div id="tip" hidden></div>
 <div id="menu" class="ov">
   <h1 class="fun st">ДЕЛЁЖ</h1>
   <div class="sub fun st">Москва, 90-е. До шести бригад, один город. Ходим по очереди.</div>
@@ -268,7 +291,7 @@
   <div class="seg" id="diffSeg" style="margin-bottom:4px"></div>
   <div id="diffNote" style="color:#c9bcd2;font-size:13px;margin-bottom:6px"></div>
   <div id="lobbyNote"></div>
-  <div class="btns"><button id="newBtn" style="font-size:22px;padding:12px 26px">Новая игра</button><button id="contBtn" class="sec" style="font-size:22px;padding:12px 26px">Продолжить</button></div>
+  <div class="btns"><button id="newBtn" style="font-size:22px;padding:12px 26px">Новая игра</button><button id="contBtn" class="sec" style="font-size:22px;padding:12px 26px">Продолжить</button><button id="guideBtn" class="sec" style="font-size:22px;padding:12px 26px">Как играть</button></div>
   <div style="margin-top:12px;max-width:820px;text-align:center;color:#c9bcd2;font-size:13px">
     Цель — остаться единственной бригадой: захватить чужие города и разбить чужих героев. Город каждый день приносит бабло, по понедельникам приходят новые бойцы.<br>
     В центре — Кремль с Ключом, его охраняет полк: удержите Ключ неделю — и Москва ваша. Боты ходят сами; если бот нападёт на человека, игра позовёт его к компьютеру. Партия сохраняется в конце каждого хода.
@@ -289,5 +312,6 @@
 <script src="js/sound.js"></script>
 <script src="js/ui.js"></script>
 <script src="js/screens.js"></script>
+<script src="js/guide.js"></script>
 </body>
 </html>

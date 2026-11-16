@@ -9,6 +9,7 @@ const browser = await puppeteer.launch({ executablePath: '/Applications/Google C
 for (const [w, h] of [[1440, 900], [1280, 760], [1920, 1080]]) {
   const page = await browser.newPage(); await page.setViewport({ width: w, height: h });
   page.on('pageerror', e => console.log('ERR', String(e).slice(0, 300)));
+  await page.evaluateOnNewDocument(() => { localStorage.setItem('delyozh_guide_seen', '1'); localStorage.setItem('delyozh_tips', 'all'); });
   await page.goto(`http://127.0.0.1:${server.address().port}/`);
   await page.evaluate(() => {
     window.curtain = async () => {}; window.ask = async () => 0;
