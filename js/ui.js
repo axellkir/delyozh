@@ -328,7 +328,7 @@ function continuePath() {
   if (h.dest) { const plan = findPath(h, h.dest.x, h.dest.y); if (plan) moveHero(h, plan); else { h.dest = null; toast('Путь закрыт'); } }
   else toast('Выберите, куда идти');
 }
-const anyOverlay = () => ['modal', 'town', 'exch', 'curtain', 'menu'].some(id => !$(id).hidden);
+const anyOverlay = () => ['modal', 'town', 'exch', 'curtain', 'menu', 'guide'].some(id => !$(id).hidden);
 
 // ---------- панель ----------
 function refresh() {

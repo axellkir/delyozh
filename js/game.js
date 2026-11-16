@@ -111,6 +111,7 @@ async function turnIntro(p) {
   const hs = myHeroes(p.id);
   if (hs.length) selectHero(hs[0]); else { const t = myTowns(p.id)[0]; if (t) centerOn(t.x, t.y); }
   refresh();
+  tip('map');
 }
 async function endTurn() {
   if (BUSY || G.over) return;
@@ -503,7 +504,7 @@ function jobsTick(p) {
     if (gone) { p.jobs = p.jobs.filter(x => x !== j); notify(p.id, `Заказ «${jobTitle(j)}» сорвался: опередили.`); continue; }
     if (G.day > j.until) { p.jobs = p.jobs.filter(x => x !== j); addHeat(p.id, JOB_FAIL_HEAT); notify(p.id, `${j.boss} недоволен: заказ «${jobTitle(j)}» просрочен. Слух прошёл по району — розыск +${JOB_FAIL_HEAT}.`); }
   }
-  if (p.offerWeek !== weekNo()) { p.offerWeek = weekNo(); p.offers = jobOffers(p); if (p.offers.length) notify(p.id, `Авторитеты предлагают заказы: ${p.offers.length}. Взять их можно в любом своём городе.`); }
+  if (p.offerWeek !== weekNo()) { p.offerWeek = weekNo(); p.offers = jobOffers(p); if (p.offers.length && G.day > 1) notify(p.id, `Авторитеты предлагают заказы: ${p.offers.length}. Взять их можно в любом своём городе.`); }
 }
 function jobTribute(p, j) {
   if ((p.res[j.res] || 0) < j.amt) return `Нужно ${j.amt} ${RES_GEN[j.res]}`;

@@ -20,6 +20,7 @@ const browser = await puppeteer.launch({ executablePath: chrome, headless: true,
 const page = await browser.newPage();
 await page.setViewport({ width: 1440, height: 900 });
 page.on('pageerror', e => console.log('ОШИБКА СТРАНИЦЫ:', String(e)));
+await page.evaluateOnNewDocument(() => { localStorage.setItem('delyozh_guide_seen', '1'); localStorage.setItem('delyozh_tips', 'all'); });
 await page.goto(`http://127.0.0.1:${server.address().port}/`, { waitUntil: 'load' });
 await new Promise(r => setTimeout(r, 500));
 await page.screenshot({ path: path.join(out, 'menu.png') });

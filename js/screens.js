@@ -39,9 +39,9 @@ function bindSlots(root, armies, rerender) {
 let townDone = null;
 function openTown(t, hero, tab) {
   if (tab) TOWN_TAB = tab;
-  return new Promise(res => { SLOT = null; townDone = res; $('town').hidden = false; $('toast').style.opacity = 0; renderTown(t, hero); });
+  return new Promise(res => { SLOT = null; townDone = res; $('town').hidden = false; $('toast').style.opacity = 0; renderTown(t, hero); tip('town'); });
 }
-function closeTown() { $('town').hidden = true; SLOT = null; refresh(); if (townDone) { const r = townDone; townDone = null; r(); } }
+function closeTown() { if ($('tip').className === 'intown') $('tip').hidden = true; $('town').hidden = true; SLOT = null; refresh(); if (townDone) { const r = townDone; townDone = null; r(); } }
 // какая вкладка открыта в левой колонке окна города: стройка или заказы
 let TOWN_TAB = 'build';
 // значки зданий хозяйства и защиты
@@ -155,7 +155,11 @@ function openExchange(a, b) {
 }
 
 // ---------- бой ----------
-function battleUI(on) { $('bui').hidden = !on; closeSpells(); if (on) { $('toast').style.opacity = 0; refreshBattleUI(); } }
+function battleUI(on) {
+  $('bui').hidden = !on; closeSpells();
+  if (on) { $('toast').style.opacity = 0; refreshBattleUI(); if (B.sides.some(sd => !sd.auto)) tip('battle'); }
+  else if ($('tip').className === 'inb') $('tip').hidden = true;     // подсказка про бой после боя не нужна
+}
 const btnLbl = (icon, text, key) => `${ico(icon, 16)}<span class="lbl">${text}</span><kbd>${key}</kbd>`;
 function refreshBattleUI() {
   if (!B || B.quick) return;
