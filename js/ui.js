@@ -360,13 +360,12 @@ function refresh() {
     document.querySelectorAll('[data-ex]').forEach(el => el.onclick = () => { if (!locked()) openExchange(h, heroById(+el.dataset.ex)); });
   } else $('hCard').innerHTML = '<small>Выберите героя</small>';
   $('goBtn').disabled = watch || !h || (!h.dest && !UI.plan);
-  // заказы авторитетов: взятые — со сроком и кнопкой «где», предложения — с кнопкой «взять»
-  const jobs = p.jobs || [], offers = p.offers || [], full = jobs.length >= JOB_MAX;
-  $('jobsBox').innerHTML = !jobs.length && !offers.length ? '' : `<h3>Заказы авторитетов · ${jobs.length}/${JOB_MAX}</h3>`
-    + jobs.map(j => { const left = j.until - G.day; return `<div class="job"><b>${ico(JOB_ICON[j.type], 16)} ${jobTitle(j)}</b><small>${j.boss}: ${jobText(j)}</small><div class="jf"><span>${rewardText(j.reward)}${j.heat ? `, розыск −${j.heat}` : ''} · <span class="${left <= 1 ? 'late' : ''}">${left > 0 ? `ещё ${left} дн.` : 'последний день'}</span></span>${j.type === 'tribute' ? `<button class="sm" data-jt="${j.id}" ${(p.res[j.res] || 0) >= j.amt ? '' : 'disabled'}>Сдать</button>` : jobSpot(j) ? `<button class="sec sm" data-jw="${j.id}">Где</button>` : ''}</div></div>`; }).join('')
-    + (offers.length ? `<small style="color:#9a8fa0;display:block;margin:4px 0">Предлагают до понедельника:</small>` + offers.map(j => `<div class="job offer"><b>${ico(JOB_ICON[j.type], 16)} ${jobTitle(j)}</b><small>${j.boss} · срок ${j.days} дн. · награда: ${rewardText(j.reward)}${j.heat ? `, розыск −${j.heat}` : ''}</small><div class="jf"><span></span><button class="sm" data-jo="${j.id}" ${full || watch ? 'disabled' : ''}>Взять</button></div></div>`).join('') : '');
-  document.querySelectorAll('[data-jo]').forEach(el => el.onclick = () => { if (locked()) return; const r = jobTake(p, el.dataset.jo); if (r !== true) toast(r, true); refresh(); });
-  document.querySelectorAll('[data-jt]').forEach(el => el.onclick = () => { if (locked()) return; const j = jobs.find(x => x.id === el.dataset.jt); const r = j && jobTribute(p, j); if (r !== true) toast(r || 'Нет такого заказа', true); refresh(); });
+  // заказы: в панели только взятые — коротко и с кнопкой «где»; брать и сдавать — в городе
+  const jobs = p.jobs || [], offers = p.offers || [], town0 = myTowns(p.id)[0];
+  $('jobsBox').innerHTML = !jobs.length && !offers.length ? '' : `<h3>Заказы · ${jobs.length}/${JOB_MAX}</h3>`
+    + jobs.map(j => { const left = j.until - G.day; return `<div class="job"><b>${ico(JOB_ICON[j.type], 16)} ${jobTitle(j)}</b><div class="jf"><span class="${left <= 1 ? 'late' : ''}">${left > 0 ? `ещё ${left} дн.` : 'последний день'}</span>${jobSpot(j) ? `<button class="sec sm" data-jw="${j.id}">Где</button>` : ''}</div></div>`; }).join('')
+    + (offers.length && town0 && !watch ? `<button class="sec sm" id="jobsTown" style="width:100%">${ico('chest', 14)} Новые заказы: ${offers.length} — в город</button>` : '');
+  if ($('jobsTown')) $('jobsTown').onclick = () => { if (!locked()) openTown(town0, heroAt(town0.x, town0.y), 'jobs'); };
   document.querySelectorAll('[data-jw]').forEach(el => el.onclick = () => { const j = jobs.find(x => x.id === el.dataset.jw), sp = j && jobSpot(j); if (sp) centerOn(sp.x, sp.y); });
 }
 $('endBtn').onclick = () => { if (!locked()) endTurn(); };

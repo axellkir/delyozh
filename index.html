@@ -162,6 +162,19 @@
   .sect { margin-top: 14px; }
   .mrow { display: flex; align-items: center; gap: 6px; margin-bottom: 4px; font-size: 13px; }
   .mrow > span:first-child { min-width: 80px; }
+  .ttabs { display: flex; gap: 6px; margin-bottom: 12px; position: sticky; top: -12px; z-index: 2; background: var(--panel); padding: 4px 0 6px; }
+  .ttabs button { background: #2a2030; color: #c9bcd2; border: 2px solid #3d3046; border-radius: 8px; padding: 6px 12px; font-size: 14px; display: flex; align-items: center; gap: 6px; }
+  .ttabs button.on { background: #3a2c42; color: #fff; border-color: var(--gold); }
+  .ttabs .cnt { background: var(--gold); color: #1b1420; border-radius: 9px; padding: 0 6px; font-size: 12px; }
+  .jgrid { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-bottom: 16px; }
+  .jc { background: #2a2030; border: 2px solid #a07c00; border-radius: 10px; padding: 8px 10px; display: flex; flex-direction: column; gap: 6px; }
+  .jc.offer { border-color: #4a3a52; }
+  .jc .jt { display: flex; align-items: center; gap: 8px; font-size: 14px; }
+  .jc .jb { font-size: 12px; color: #c9bcd2; font-style: italic; flex: 1; }
+  .jc .jf { display: flex; justify-content: space-between; align-items: flex-end; gap: 8px; font-size: 12px; color: #c9bcd2; }
+  .jc .jf b { color: #9fd89f; }
+  .jc .late { color: #ff9a8a; font-weight: bold; }
+  .jempty { color: #9a8fa0; font-size: 13px; margin: 0 0 16px; }
   /* ---------- обмен между героями ---------- */
   #exch .box { width: min(760px, 94vw); }
   .row { display: flex; gap: 16px; align-items: flex-start; flex-wrap: wrap; }
