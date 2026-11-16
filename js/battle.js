@@ -372,7 +372,7 @@ function chooseSpell(id) {
   if (!canCast(sd)) { toast('Понты — раз за раунд'); return; }
   if (h.mana < sp.cost) { toast('Не хватает понтов'); return; }
   if (sp.target === 'all') { if (B.mirror) netCmd({ k: 'spell', id: sp.id }); else castSpell(sp, null); return; }
-  B.spell = sp; toast(sp.target === 'enemy' ? 'Выберите вражеский отряд' : 'Выберите свой отряд');
+  B.spell = sp;
   refreshBattleUI();
 }
 function castOn(t) {

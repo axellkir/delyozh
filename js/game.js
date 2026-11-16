@@ -49,6 +49,7 @@ function dailyIncome(pid) {
     if (roofed && o.roof.owner === pid) inc[MINE[o.kind].res] += cut;
   }
   for (const h of myHeroes(pid)) inc.gold += heroStats(h).gold;
+  inc.gold += G.players[pid].bonusInc || 0; // акции и прочие вложения
   return inc;
 }
 
@@ -73,6 +74,7 @@ async function beginTurn() {
   const p = curP(), bot = isBot(p.id);
   BOTTING = bot;
   turnEffects(p);
+  checkWin(); if (G.over) { BOTTING = false; return; } // ключ могли продержать нужное число дней
   UI.sel = null; UI.plan = null;
   if (p.noTown >= 7) {
     G.heroes = G.heroes.filter(h => h.owner !== p.id); checkWin();
@@ -84,7 +86,7 @@ async function beginTurn() {
   if (netRemote(p.id)) { BOTTING = false; refresh(); netHandOver(); return; }
   if (bot) {
     refresh();
-    try { await sleep(350); await raidCheck(p); if (!G.over) await botTurn(p); }
+    try { await sleep(350); await raidCheck(p); if (!G.over) await weekDeal(p); if (!G.over) await botTurn(p); }
     catch (e) { console.error('Ошибка в ходе бота', e); BUSY = false; }
     BOTTING = false;
     if (!G.over) await endTurn(); else refresh();
@@ -104,6 +106,7 @@ async function turnIntro(p) {
     p.weekSeen = weekNo();
     await ask(`${ico('radio', 24)} Неделя ${weekNo()}: ${G.week.title}`, G.week.text, ['Понятно']);
   }
+  await weekDeal(p);
   const hs = myHeroes(p.id);
   if (hs.length) selectHero(hs[0]); else { const t = myTowns(p.id)[0]; if (t) centerOn(t.x, t.y); }
   refresh();
@@ -391,6 +394,45 @@ async function siege(h, t) {
   else await ask(`${ico('i_flag', 24)} Город наш!`, `${t.name} переходит к бригаде «${p.name}».${old >= 0 ? ' Бывшие хозяева в ярости.' : ''}`, ['Заходим'], { pid: h.owner });
   checkWin();
 }
+// ---------- дела недели ----------
+// пирамида: через неделю либо вдвое, либо всё сгорело. r — для проверки правил
+function pyramidResolve(p, r = Math.random()) {
+  const P = p.pyramid; if (!P || weekNo() < P.week) return '';
+  p.pyramid = null;
+  if (r < 0.5) { p.res.gold += P.amt * 2; return `Пирамида заплатила: +${P.amt * 2} бабла.`; }
+  return `Пирамида лопнула. ${P.amt} бабла сгорели.`;
+}
+// раз в неделю (со второй) у бригады своя история; id — показать конкретную (для проверки правил)
+async function weekDeal(p, id) {
+  if (!id && (weekNo() < 2 || p.dealWeek === weekNo())) return;
+  p.dealWeek = weekNo();
+  const bot = isBot(p.id), py = pyramidResolve(p);
+  if (py) { if (bot) { /* бот молча принимает итог */ } else await ask(`${ico('r_gold', 24)} Пирамида`, py, ['Ясно'], { pid: p.id }); }
+  const seen = p.dealsSeen || (p.dealsSeen = []);
+  const pool = DEALS.filter(d => (id ? d.id === id : true) && (!d.ok || d.ok(p)) && !(d.once && seen.includes(d.id)));
+  const fresh = pool.filter(d => !seen.slice(-3).includes(d.id)), d = id ? pool[0] : pick(fresh.length ? fresh : pool);
+  if (!d) return;
+  seen.push(d.id);
+  const opts = d.opts.filter(o => !o[1] || o[1](p));
+  const c = bot ? Math.min(d.bot(p), opts.length - 1) : await ask(`${ico(d.ic, 24)} ${d.title}`, d.text(p), opts.map(o => o[0]), { pid: p.id });
+  const o = opts[c] || opts[opts.length - 1], res = await o[2](p);
+  if (!bot && res) await ask(d.title, res, ['Ясно'], { pid: p.id });
+  refresh();
+}
+
+// ---------- Ключ от Кремля ----------
+// Ключ, потерянный вместе с героем у местных или милиции, возвращается в Кремль
+function keyHome() {
+  if (G.heroes.some(h => h.arts.includes('key')) || G.objs.some(o => o.t === 'art' && o.art === 'key')) return;
+  const cx = Math.floor(MCX) - 1, cy = Math.floor(MCY) - 1;
+  for (let r = 0; r < 8; r++) for (let dy = -r; dy <= r; dy++) for (let dx = -r; dx <= r; dx++) {
+    const x = cx + dx, y = cy + dy;
+    if (inMap(x, y) && passT(tileAt(x, y)) && !objAt(x, y) && !heroAt(x, y)) { G.objs.push({ t: 'art', art: 'key', id: G.nextId++, x, y }); reindex(); return; }
+  }
+}
+// кто держит ключ и сколько дней ещё осталось держать
+function keyState() { const h = G.heroes.find(x => x.arts.includes('key')); return h ? { owner: h.owner, left: KEY_DAYS - (G.day - (G.keyHold && G.keyHold.owner === h.owner ? G.keyHold.since : G.day)) } : null; }
+
 // ---------- розыск ----------
 // За наглость — драки, захваты, крыши — бригаде копится розыск. Остывает сам, снимается взяткой: в своём городе с Управой
 // или вдвое дешевле на Петровке, 38. Кто к понедельнику набрал HEAT_RAID, к тому в начале хода приезжает ОМОН.
@@ -451,6 +493,7 @@ async function heroDies(h, why, captor = -1) {
   G.heroes = G.heroes.filter(x => x !== h);
   log(`${h.name} (${G.players[h.owner].name}) ${why}`);
   if (UI.sel === h.id) UI.sel = null;
+  if (h.arts.includes('key') && !(captor >= 0 && G.heroes.some(x => x.owner === captor && x.arts.includes('key')))) { h.arts = h.arts.filter(a => a !== 'key'); keyHome(); }
   const town = captor >= 0 && captor !== h.owner ? jailTown(captor, h.x, h.y) : null;
   const j = { hero: { ...h, army: [null, null, null, null, null], arts: [], dest: null, mp: 0 }, captor: town ? captor : -1, at: town ? town.id : 0, day: G.day };
   jail().push(j);
@@ -499,6 +542,18 @@ function checkWin() {
   }
   const alive = G.players.filter(p => p.alive);
   if (G.over) return;
+  // ключ: сменился хозяин — счёт заново; продержали KEY_DAYS дней — победа
+  const kh = G.heroes.find(h => h.arts.includes('key')), ko = kh ? kh.owner : -1;
+  if (!G.keyHold || G.keyHold.owner !== ko) {
+    G.keyHold = { owner: ko, since: G.day };
+    if (ko >= 0) G.players.forEach(x => { if (x.id !== ko) notify(x.id, `Ключ от Кремля у бригады «${G.players[ko].name}». Продержат ${KEY_DAYS} дней — Москва их. Отберите ключ: разбейте героя ${kh.name}.`); });
+    if (ko >= 0 && ko === G.cur && !isBot(ko)) toast(`Ключ от Кремля ваш! Продержите его ${KEY_DAYS} дней — и Москва ваша.`, true);
+  } else if (ko >= 0 && G.players[ko].alive && G.day - G.keyHold.since >= KEY_DAYS) {
+    G.over = true; G.winner = ko; G.winBy = 'key';
+    if (NET.on) { NET.overShown = true; netDirty(); } else localStorage.removeItem(SAVE_KEY);
+    setTimeout(() => showVictory(G.players[ko]), 400);
+    return;
+  }
   // партия кончается, когда осталась одна бригада — или когда людей не осталось вовсе (тогда Москву забирает сильнейший бот)
   const lastOne = alive.length === 1, noHumans = alive.length > 0 && alive.every(p => p.kind === 'bot');
   if (lastOne || noHumans) {

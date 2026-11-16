@@ -105,12 +105,35 @@
   #bui { position: fixed; left: 0; top: 0; bottom: 0; right: 300px; pointer-events: none; z-index: 20; }
   #bui[hidden] { display: none; }
   #bTop { position: absolute; left: 0; right: 0; top: 10px; text-align: center; font-size: 11px; font-weight: bold; }
-  #bInfo { position: absolute; left: 0; right: 0; bottom: 74px; text-align: center; font-size: 16px; min-height: 22px; }
-  #bLog { position: absolute; left: 14px; bottom: 12px; font-size: 13px; color: #d8cce0; line-height: 1.35; }
-  #bBtns { position: absolute; right: 14px; bottom: 14px; display: flex; gap: 8px; pointer-events: auto; }
-  #bSpells { position: absolute; right: 14px; bottom: 70px; display: flex; flex-direction: column; gap: 6px; pointer-events: auto; }
-  #bSpells button { text-align: left; }
-  #bSpells small { display: block; font-weight: normal; font-size: 12px; }
+  /* низ боя: слева очередь ходов и журнал, справа кнопки; сверху над ними — подсказка по наведению */
+  #bBar { position: absolute; left: 0; right: 0; bottom: 0; padding: 26px 14px 10px; display: flex; gap: 14px; align-items: flex-end; background: linear-gradient(rgba(14,9,20,0), rgba(14,9,20,.94) 34%); }
+  #bLeft { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 6px; }
+  #bQueue { display: flex; gap: 4px; overflow: hidden; }
+  .qi { position: relative; width: 38px; height: 38px; border-radius: 6px; display: flex; align-items: center; justify-content: center; flex: none; box-shadow: inset 0 0 0 2px rgba(0,0,0,.35); }
+  .qi b { position: absolute; right: 2px; bottom: 0; font-size: 11px; text-shadow: 1px 1px 0 #000, -1px -1px 0 #000, 1px -1px 0 #000, -1px 1px 0 #000; }
+  .qi.on { box-shadow: 0 0 0 3px #fff; margin-right: 6px; }
+  #bLog { font-size: 12px; color: #d8cce0; line-height: 1.35; }
+  #bLog div { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  #bLog div:not(:first-child) { opacity: .6; }
+  #bInfo { position: absolute; left: 50%; transform: translateX(-50%); bottom: 132px; max-width: 80%; text-align: center; font-size: 14px; line-height: 1.4; background: rgba(14,9,20,.86); border-radius: 8px; padding: 0 12px; }
+  #bInfo:not(:empty) { padding: 5px 12px; }
+  #bBtns { display: grid; grid-template-columns: auto auto; gap: 6px; pointer-events: auto; flex: none; }
+  #bBtns button { display: flex; align-items: center; gap: 6px; padding: 6px 10px; font-size: 14px; white-space: nowrap; }
+  #bBtns button.on { background: #fff3b0; }
+  kbd { font: 9px "Press Start 2P", monospace; opacity: .55; margin-left: 2px; }
+  @media (max-width: 1180px) { #bBtns .lbl { display: none; } #bBtns { grid-template-columns: auto auto auto auto; } }
+  /* понты: всплывающее меню над кнопками; закрывается крестиком, той же кнопкой, клавишей C или Esc и кликом по полю */
+  #bSpells { position: absolute; right: 14px; bottom: 112px; width: 370px; max-width: calc(100% - 28px); background: var(--panel); border: 3px solid var(--gold); border-radius: 12px; padding: 8px; box-shadow: 0 10px 30px #000; pointer-events: auto; display: flex; flex-direction: column; gap: 4px; }
+  #bSpells[hidden] { display: none; }
+  #bSpells .sh { display: flex; justify-content: space-between; align-items: center; padding: 0 2px 4px 4px; font: 10px "Press Start 2P", monospace; color: var(--gold); }
+  #bSpells .sh button { background: #3a2c42; color: #f2ecdf; border: 0; padding: 3px 9px; font-size: 14px; }
+  #bSpells .sp { display: grid; grid-template-columns: 22px 1fr auto; gap: 1px 8px; align-items: center; text-align: left; background: #2a2030; color: #f2ecdf; border: 2px solid transparent; border-bottom: 2px solid #17111c; padding: 6px 8px; font-size: 14px; }
+  #bSpells .sp:hover { border-color: var(--gold); background: #3a2c42; filter: none; }
+  #bSpells .sp small { grid-column: 2 / 4; font-weight: normal; font-size: 12px; color: #c9bcd2; }
+  #bSpells .sp .c { display: flex; align-items: center; gap: 3px; color: #8fdcf5; }
+  #bSpells .sp.ult { border-color: #a07c00; background: #33280f; }
+  #bSpells .sp:disabled { opacity: .45; background: #2a2030; color: #f2ecdf; border-color: transparent; }
+  #bSpells .why { color: #ff9a8a; }
   #help { font-size: 13px; color: #b9a9c4; }
 </style>
 </head>
@@ -137,13 +160,15 @@
 <div id="bui" hidden>
   <div id="bTop" class="st fun"></div>
   <div id="bInfo" class="st"></div>
-  <div id="bLog" class="st"></div>
   <div id="bSpells" hidden></div>
-  <div id="bBtns">
-    <button id="bWait">Ждать (W)</button>
-    <button id="bDef">Оборона (D)</button>
-    <button id="bCast">Понты (C)</button>
-    <button id="bAuto" class="sec">Авто (A)</button>
+  <div id="bBar">
+    <div id="bLeft"><div id="bQueue"></div><div id="bLog" class="st"></div></div>
+    <div id="bBtns">
+      <button id="bCast">Понты</button>
+      <button id="bDef">Оборона</button>
+      <button id="bWait">Ждать</button>
+      <button id="bAuto" class="sec">Авто</button>
+    </div>
   </div>
 </div>
 
@@ -165,7 +190,7 @@
   <div class="btns"><button id="newBtn" style="font-size:22px;padding:12px 26px">Новая игра</button><button id="contBtn" class="sec" style="font-size:22px;padding:12px 26px">Продолжить</button></div>
   <div style="margin-top:12px;max-width:820px;text-align:center;color:#c9bcd2;font-size:13px">
     Цель — остаться единственной бригадой: захватить чужие города и разбить чужих героев. Город каждый день приносит бабло, по понедельникам приходят новые бойцы.<br>
-    В центре — Кремль с Ключом, его охраняет полк. Боты ходят сами; если бот нападёт на человека, игра позовёт его к компьютеру. Партия сохраняется в конце каждого хода.
+    В центре — Кремль с Ключом, его охраняет полк: удержите Ключ неделю — и Москва ваша. Боты ходят сами; если бот нападёт на человека, игра позовёт его к компьютеру. Партия сохраняется в конце каждого хода.
   </div>
   <div id="ver" style="position:absolute;right:14px;bottom:10px;font-size:12px;color:#7d6f87"></div>
 </div>
