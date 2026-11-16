@@ -324,7 +324,8 @@ function refresh() {
     : watch ? `<b style="color:${curP().col}">${ico(isBot(G.cur) ? 'i_bot' : 'i_net', 16)} Ходит: ${esc(curP().name)}…</b>` : `Неделя ${weekNo()}, день ${dayOfWeek()} · всего дней: ${G.day}`;
   $('endBtn').disabled = watch;
   netBox(); netDirty();
-  $('pRes').innerHTML = RES.map(r => `<div>${resIco(r, 22)} ${p.res[r]}<small>+${inc[r]}/день</small></div>`).join('');
+  const st = heatStars(p);
+  $('pRes').innerHTML = RES.map(r => `<div>${resIco(r, 22)} ${p.res[r]}<small>+${inc[r]}/день</small></div>`).join('') + `<div title="Розыск: ${p.heat || 0} из 100. Копится за драки, захваты и крыши, сам остывает. С ${HEAT_RAID} в понедельник приезжает ОМОН. Откупиться — в городе с Управой или на Петровке.">${st ? ico('i_star', 16).repeat(st) : '—'}<small style="color:${(p.heat || 0) >= HEAT_RAID ? '#ff6b6b' : (p.heat || 0) >= HEAT_WARN ? '#ffd21a' : '#b9a9c4'}">розыск ${p.heat || 0}</small></div>`;
   $('heroList').innerHTML = myHeroes(p.id).map(h => `<div class="li ${h.id === UI.sel ? 'on' : ''}" data-h="${h.id}"><span class="em">${heroIco(h, 32)}</span><span>${h.name}<br><small>ур. ${h.lvl}</small></span><span class="mpb"><i style="width:${Math.round(100 * h.mp / heroMaxMp(h))}%"></i></span></div>`).join('') + myJailed(p.id).map(j => `<div class="li" style="opacity:.55;cursor:default"><span class="em">${heroIco(j.hero, 32)}</span><span>${j.hero.name}<br><small>${jailPlace(j)}</small></span></div>`).join('') || '<small>Героев нет — наймите в городе</small>';
   $('townList').innerHTML = myTowns(p.id).map(t => `<div class="li" data-t="${t.id}"><span class="em">${ico('t_' + t.fac, 32)}</span><span>${t.name}<br><small>${t.builtDay === G.day ? 'сегодня уже строили' : 'можно строить'}</small></span></div>`).join('') || '<small>Городов нет! Захватите любой за 7 дней</small>';
   document.querySelectorAll('[data-h]').forEach(el => el.onclick = () => { if (!locked()) selectHero(heroById(+el.dataset.h)); });
