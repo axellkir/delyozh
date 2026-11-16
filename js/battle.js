@@ -47,6 +47,12 @@ function runBattle(cfg) {
         B.stacks.push({ id: i * 10 + k, side: i, slot: s.slot, u: s.u, n: s.n, n0: s.n, moved: 0, curse: 0, slow: 0, stun: false, extra: false, kur: 0, lunge: null, hp: U.hp, x: i ? BW - 1 : 0, y: Math.round((k + 0.5) * BH / arr.length - 0.5), px: 0, py: 0, shots: U.shots || 0, ret: 1, buff: 0, defd: false, waited: false, flash: 0 });
       });
     }
+    // герой выходит на поле отдельным бойцом во второй линии своей стороны
+    for (let i = 0; i < 2; i++) {
+      const h = B.sides[i].hero; if (!h) continue;
+      const u = heroUnit(h), x = i ? BW - 2 : 1, y = [3, 4, 2, 5, 1, 6].find(yy => !B.stacks.some(q => q.x === x && q.y === yy));
+      B.stacks.push({ id: 90 + i, side: i, slot: -1, hero: true, u, n: 1, n0: 1, moved: 0, curse: 0, slow: 0, stun: false, extra: false, kur: 0, lunge: null, hp: UNITS[u].hp, x, y: y == null ? 3 : y, px: 0, py: 0, shots: 0, ret: 1, buff: 0, defd: false, waited: false, flash: 0 });
+    }
     B.stacks.forEach(s => { s.px = s.x; s.py = s.y; });
     // при штурме города с забором поперёк поля стоит забор с воротами посередине: пешим — только через ворота
     B.barrels = new Set(); B.fences = new Set(); B.shake = 0;
@@ -60,6 +66,22 @@ function runBattle(cfg) {
 }
 
 const alive = s => s.n > 0;
+// бой идёт, пока у стороны есть бойцы; герой без пацанов поле не удержит
+const armyLeft = i => B.stacks.some(x => x.side === i && alive(x) && !x.hero);
+// Герой в бою — отдельный боец: сила растёт с уровнем, атака и защита героя прибавляются к ней, как ко всем его отрядам
+function heroUnit(h) {
+  const key = 'hero_' + h.id, L = h.lvl;
+  UNITS[key] = { name: h.name, tier: 0, att: 3 + L, def: 3 + L, dmg: [3 + 2 * L, 6 + 3 * L], hp: 30 + 12 * L, spd: 6, grow: 0, cost: { gold: 0 }, isHero: true, spr: 'h_' + h.name, note: 'герой: выбьют — бригада до конца боя останется без его атаки, защиты и понтов' };
+  if (SPRITES['h_' + h.name]) SPRITES[key] = SPRITES['h_' + h.name];
+  return key;
+}
+// героя выбили: его прибавки к атаке и защите и понты пропадают до конца боя
+function knockOut(t) {
+  const sd = B.sides[t.side]; if (sd.heroDown) return;
+  sd.heroDown = true; sd.st = { ...sd.st, att: 0, def: 0, spd: 0, luck: 0, lead: false };
+  floatText(t, 'герой выбит!', '#ffd21a', 0.2); B.shake = Math.max(B.shake || 0, 8);
+  blog(`${sd.hero ? sd.hero.name : 'Герой'} выбит — пацаны дерутся без него`);
+}
 const stackAt = (x, y) => B.stacks.find(s => alive(s) && s.x === x && s.y === y) || null;
 const enemiesOf = s => B.stacks.filter(e => alive(e) && e.side !== s.side);
 const cheb = (a, b) => Math.max(Math.abs(a.x - b.x), Math.abs(a.y - b.y));
@@ -116,6 +138,7 @@ function applyDmg(t, dmg) {
   let p = pool(t) - dmg;
   if (p <= 0) { t.n = 0; t.hp = 0; t.dead = 1; burst(t.x, t.y, 12, ['#c8c8d0', '#8a8a96', '#4a4a55'], { v: 0.06, g: -0.001 }); } else { t.n = Math.ceil(p / H); t.hp = p - (t.n - 1) * H; }
   t.flash = 1;
+  if (t.hero && t.n <= 0) knockOut(t);
   return before - t.n;
 }
 function blog(t) { B.log.unshift(t); B.log.length = Math.min(B.log.length, 6); }
@@ -200,7 +223,7 @@ async function battleLoop() {
     else if (B.sides[s.side].remote) await remoteTurn(s);
     else { netBattlePush(); await new Promise(r => { B.wait = r; }); }
     B.wait = null; B.spell = null; s.slow = 0;
-    const done = [0, 1].find(i => !B.stacks.some(x => x.side === i && alive(x)));
+    const done = [0, 1].find(i => !armyLeft(i));
     if (done !== undefined) { await sleep(500); endBattle(1 - done); return; }
     if (alive(s) && s.extra) { s.extra = false; B.queue.unshift(s); }
     netBattlePush();
@@ -249,7 +272,7 @@ async function remoteExec(s, c) {
 function endBattle(winner) {
   B.over = true;
   const out = i => { const arr = [null, null, null, null, null]; B.stacks.filter(s => s.side === i && alive(s) && s.slot >= 0).forEach(s => { arr[s.slot] = { u: s.u, n: s.n }; }); return arr; }; // подтянутые на бой (slot −1) после него расходятся
-  const r = { winner, aArmy: out(0), dArmy: out(1) };
+  const r = { winner, aArmy: out(0), dArmy: out(1), down: B.sides.map(sd => !!sd.heroDown) };
   const res = B.resolve, quick = B.quick; SPEED = B.speed0;
   if (!quick) { battleUI(false); netBattlePush(true); }
   B = null; if (!quick) sfx(winner === 0 ? 'win' : 'lose');
@@ -258,7 +281,7 @@ function endBattle(winner) {
 
 // ---------- ИИ ----------
 const worth = u => { const U = UNITS[u]; return U.hp * (U.att + U.def + 4) * (U.shots ? 1.4 : 1); };
-function scoreHit(a, t, ranged, moved) { const [lo, hi] = dmgRange(a, t, ranged, moved), d = (lo + hi) / 2; return Math.min(d, pool(t)) / UNITS[t.u].hp * worth(t.u) * (d >= pool(t) ? 1.3 : 1); } // добить отряд ценнее: будет кураж
+function scoreHit(a, t, ranged, moved) { const [lo, hi] = dmgRange(a, t, ranged, moved), d = (lo + hi) / 2; return Math.min(d, pool(t)) / UNITS[t.u].hp * worth(t.u) * (d >= pool(t) ? 1.3 : 1) * (t.hero ? 2.5 : 1); } // выбить героя — лишить врага всех его прибавок // добить отряд ценнее: будет кураж
 // выгода от взрыва бочки: чужим больно — плюс, своим — минус
 function barrelGain(s, x, y) { let g = 0; for (const e of B.stacks) if (alive(e) && Math.max(Math.abs(e.x - x), Math.abs(e.y - y)) <= 1) g += (e.side === s.side ? -1.5 : 1) * Math.min(barrelDmg(), pool(e)) / UNITS[e.u].hp * worth(e.u); return g; }
 // сколько шагов от клетки до места рядом с врагом в обход препятствий (чужие отряды не в счёт — они сдвинутся)
@@ -297,6 +320,12 @@ async function aiTurn(s) {
   if (enemiesOf(s).length) await aiCast(s);
   const en = enemiesOf(s);
   if (!en.length) return;
+  if (s.hero) { // герой держится во второй линии: бьёт, только если цель рядом, иначе встаёт в оборону
+    const R = reach(s); let best = null;
+    for (const e of en) for (const [dx, dy] of DIRS) { const k = `${e.x + dx},${e.y + dy}`, p = R.get(k); if (p && p.length <= 2) { const sc = scoreHit(s, e, false, p.length); if (!best || sc > best.sc) best = { e, p, sc }; } }
+    if (best && s.hp > UNITS[s.u].hp * 0.35) { await walk(s, best.p); await melee(s, best.e); } else { s.defd = true; blog(`${sName(s)} держится позади`); }
+    return;
+  }
   if (canShoot(s)) {
     const t = en.reduce((b, e) => (scoreHit(s, e, true) > scoreHit(s, b, true) ? e : b));
     let bar = null; for (const k of B.barrels) { const [x, y] = k.split(',').map(Number), g = barrelGain(s, x, y); if (g > 0 && (!bar || g > bar.g)) bar = { x, y, g }; }
@@ -362,7 +391,7 @@ function attackCell(s, t, fx, fy) {
 function battleWait() { if (B && B.mirror) { if (B.active && B.active.waited) toast('Ждать можно раз за раунд'); else netCmd({ k: 'wait' }); return; } act(async () => { const s = B.active; if (s.waited) { toast('Ждать можно раз за раунд'); return; } s.waited = true; B.queue.push(s); blog(`${sName(s)} ждут`); }); }
 function battleDefend() { if (B && B.mirror) { netCmd({ k: 'defend' }); return; } act(async () => { B.active.defd = true; blog(`${sName(B.active)} встают в оборону`); }); }
 function battleAuto() { if (!B) return; if (B.mirror) { netCmd({ k: 'auto' }); return; } const sd = B.sides[B.active.side]; sd.auto = true; toast('Авто-бой: дальше сами'); if (B.wait) { const w = B.wait; B.wait = null; aiTurn(B.active).then(() => { refreshBattleUI(); w(); }); } }
-function canCast(sd) { return sd.hero && sd.castRound !== B.round; }
+function canCast(sd) { return sd.hero && !sd.heroDown && sd.castRound !== B.round; }
 // понты героя: четыре общих и его коронный номер (раз за бой)
 function spellList(sd) { const u = sd.hero && HERO_ULT[sd.hero.name]; return u ? [...SPELLS, { ...u, cost: ULT_COST, ult: true }] : SPELLS; }
 const spellOf = (sd, id) => spellList(sd).find(x => x.id === id && !(x.ult && sd.ultUsed));
@@ -406,7 +435,7 @@ async function castSpell(sp, t) {
       if (cell) { const st = { id: 200 + B.stacks.length, side: s.side, slot: -1, u, n, n0: n, moved: 0, curse: 0, slow: 0, stun: false, extra: false, kur: 0, lunge: null, hp: UNITS[u].hp, x: cell.x, y: cell.y, px: s.side ? BW : -1, py: cell.y, shots: UNITS[u].shots || 0, ret: 1, buff: 0, defd: false, waited: false, flash: 0 }; B.stacks.push(st); B.queue.push(st); floatText(st, 'подтянулись!', '#7dff7d'); }
     }
     await sleep(520); B.busy = false;
-    const over = [0, 1].find(i => !B.stacks.some(x => x.side === i && alive(x)));
+    const over = [0, 1].find(i => !armyLeft(i));
     if (over !== undefined && B.wait) { const w = B.wait; B.wait = null; w(); }
     refreshBattleUI();
     return;
@@ -418,7 +447,7 @@ async function castSpell(sp, t) {
   if (sp.id === 'voda') { const H = UNITS[t.u].hp, np = Math.min(t.n0 * H, pool(t) + 20 + 10 * p); t.n = Math.ceil(np / H); t.hp = np - (t.n - 1) * H; floatText(t, 'подлечили', '#6f6'); blog(`${sd.hero.name} зарядил воду для ${sName(t)}`); }
   if (sp.id === 'strelka') { const d = 6 + 5 * p; for (const e of enemiesOf(s)) { const k = applyDmg(e, d); floatText(e, `−${d}${k ? ' · легло ' + k : ''}`, '#ff0'); } blog(`${sd.hero.name} забил стрелку: всем врагам по ${d}`); }
   await sleep(450); B.busy = false;
-  const done = [0, 1].find(i => !B.stacks.some(x => x.side === i && alive(x)));
+  const done = [0, 1].find(i => !armyLeft(i));
   if (done !== undefined && B.wait) { const w = B.wait; B.wait = null; w(); }
   refreshBattleUI();
 }
@@ -431,11 +460,13 @@ function hoverInfo(cx, cy) {
   if (!t && B.fences.has(`${cx},${cy}`)) return 'Забор с колючкой: пешком — только через ворота посередине';
   if (!t) return '';
   const U = UNITS[t.u];
-  let txt = `<b>${U.name} ×${t.n}</b> · ${ico('i_att', 16)}${U.att + B.sides[t.side].st.att - (t.curse || 0)} ${ico('i_def', 16)}${effDef(t)} · ${ico('i_hp', 16)}${t.hp}/${U.hp} · ${ico('i_spd', 16)}${sSpd(t)}${U.shots ? ` · ${ico('i_shot', 16)}${t.shots}` : ''}${U.note ? ' · <i>' + U.note + '</i>' : ''}`;
+  let txt = t.hero ? `<b>${U.name}</b>, герой · здоровье ${t.hp}/${U.hp}<br>${U.note}` : `<b>${U.name} ×${t.n}</b>`;
+  if (t.hero) txt += ` · ${ico('i_att', 16)}${U.att + B.sides[t.side].st.att} ${ico('i_def', 16)}${effDef(t)}`;
+  else txt += ` · ${ico('i_att', 16)}${U.att + B.sides[t.side].st.att - (t.curse || 0)} ${ico('i_def', 16)}${effDef(t)} · ${ico('i_hp', 16)}${t.hp}/${U.hp} · ${ico('i_spd', 16)}${sSpd(t)}${U.shots ? ` · ${ico('i_shot', 16)}${t.shots}` : ''}${U.note ? ' · <i>' + U.note + '</i>' : ''}`;
   if (t.side !== s.side && humanSide(s)) {
     const ranged = canShoot(s), ap = ranged ? null : attackCell(s, t, cx + 0.5, cy + 0.5), [lo, hi] = dmgRange(s, t, ranged, ap ? ap.length : 0), H = U.hp;
     const kill = d => Math.min(t.n, d >= pool(t) ? t.n : t.n - Math.ceil((pool(t) - d) / H));
-    txt += `<br>${ranged ? 'выстрел' : 'удар'}: <b>${lo}–${hi}</b> урона, ляжет ${kill(lo)}–${kill(hi)}${ranged && covered(s, t) ? ' · цель за укрытием, урон вдвое меньше' : ''}`;
+    txt += `<br>${ranged ? 'выстрел' : 'удар'}: <b>${lo}–${hi}</b> урона, ${t.hero ? (lo >= pool(t) ? 'герой будет выбит' : hi >= pool(t) ? 'может выбить героя' : 'герой устоит') : `ляжет ${kill(lo)}–${kill(hi)}`}${ranged && covered(s, t) ? ' · цель за укрытием, урон вдвое меньше' : ''}`;
   }
   return txt;
 }

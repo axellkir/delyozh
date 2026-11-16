@@ -121,10 +121,34 @@ try {
       const kh2 = makeHero(0, 'kach', kt.x, kt.y); kh2.army = [{ u: 'gop', n: 5 }, null, null, null, null]; kh2.arts.push('key'); G.heroes.push(kh2);
       G.objs = G.objs.filter(o => !(o.t === 'art' && o.art === 'key')); reindex();
       checkWin(); G.day += KEY_DAYS - 1; checkWin(); out.keyNotYet = !G.over; G.day += 1; checkWin(); out.keyWin = G.over && G.winBy === 'key' && G.winner === 0;
+      // заказы: разогнать местных, сдать общак, довезти груз, просрочка
+      G.over = false; const J = G.players[0]; J.alive = true; J.jobs = []; J.heat = 0;
+      const mob = G.objs.find(o => o.t === 'mob' && !o.boss), g0 = J.res.gold;
+      J.offers = [{ id: 't1', type: 'clear', target: mob.id, reward: { gold: 1000 }, boss: 'Седой', days: 7 }, { id: 't2', type: 'tribute', res: 'brick', amt: 5, reward: { gold: 500 }, heat: 25, boss: 'Седой', days: 7 }];
+      out.take = jobTake(J, 't1') === true && jobTake(J, 't2') === true && J.jobs.length === 2 && J.jobs[0].until === G.day + 7;
+      jobEvent(0, 'mob', mob.id); out.clear = J.res.gold === g0 + 1000 && J.jobs.length === 1;
+      J.res.brick = 3; out.tribPoor = typeof jobTribute(J, J.jobs[0]) === 'string';
+      J.res.brick = 9; addHeat(0, 40); out.trib = jobTribute(J, J.jobs[0]) === true && J.res.brick === 4 && J.heat === 15 && J.jobs.length === 0;
+      const A = G.objs.find(o => o.t === 'mine'), Bo = G.objs.find(o => o.t === 'town' && o !== A), hj = makeHero(0, 'kach', A.x, A.y); hj.army = [{ u: 'gop', n: 3 }, null, null, null, null]; G.heroes.push(hj);
+      J.jobs = [{ id: 't3', type: 'deliver', from: A.id, to: Bo.id, target: A.id, stage: 0, carrier: 0, reward: { gold: 700 }, boss: 'Седой', until: G.day + 7 }];
+      const g1 = J.res.gold; jobStep(hj); out.pick = J.jobs[0].stage === 1 && J.jobs[0].carrier === hj.id;
+      hj.x = Bo.x; hj.y = Bo.y; jobStep(hj); out.deliver = J.jobs.length === 0 && J.res.gold === g1 + 700;
+      J.jobs = [{ id: 't4', type: 'tribute', res: 'fuel', amt: 99, reward: { gold: 1 }, boss: 'Седой', until: G.day - 1 }]; J.heat = 0; jobsTick(J); out.late = J.jobs.length === 0 && J.heat === JOB_FAIL_HEAT;
+      J.offerWeek = -1; jobsTick(J); out.offers = (J.offers || []).length >= 2;
+      // герой на поле: выходит отдельным бойцом, поле без армии не держит, после боя в армию не попадает
+      const hb = makeHero(0, 'kach', 0, 0); hb.lvl = 8; hb.army = [{ u: 'rat', n: 1 }, null, null, null, null];
+      const rb = await runBattle({ a: { army: hb.army.map(x => x && { ...x }), hero: hb, owner: 0 }, d: { army: [{ u: 'omon', n: 30 }, null, null, null, null], hero: null, owner: -1 }, title: 'проверка', sim: true });
+      out.heroLose = rb.winner === 1 && !rb.aArmy.some(x => x && x.u.startsWith('hero_')) && !!UNITS['hero_' + hb.id] && UNITS['hero_' + hb.id].hp === 30 + 12 * 8;
       return out;
     });
     await page.close();
     const bad = [];
+    if (!r.take || !r.clear) bad.push(`заказы: взять ${r.take}, разогнать ${r.clear}`);
+    if (!r.tribPoor || !r.trib) bad.push(`общак: без ресурсов ${r.tribPoor}, сдали ${r.trib}`);
+    if (!r.pick || !r.deliver) bad.push(`груз: забрали ${r.pick}, довезли ${r.deliver}`);
+    if (!r.late) bad.push('просроченный заказ не снят или розыск не вырос');
+    if (!r.offers) bad.push('по понедельникам нет предложений');
+    if (!r.heroLose) bad.push('герой в бою: без армии поле удержал, попал в армию или неверное здоровье');
     if (!r.voucher) bad.push('ваучеры: не списались деньги или не прибавился доход');
     if (!r.pyrIn || !r.pyrWin || !r.pyrLose) bad.push(`пирамида: вклад ${r.pyrIn}, выигрыш ${r.pyrWin}, проигрыш ${r.pyrLose}`);
     if (!r.keyStart) bad.push('ключ: отсчёт не начался');
@@ -149,7 +173,7 @@ try {
     if (!r.free) bad.push('освобождённый герой всё ещё стоит денег');
     bad.push(...perr);
     if (bad.length) { failed++; console.log('✗ Правила: крыша и плен'); bad.forEach(e => console.log('    ' + e.split('\n').slice(0, 3).join('\n    '))); }
-    else console.log('✓ Правила: крыша, плен и выкуп, розыск с облавой и взяткой, дефолт, дела недели, победа по Ключу');
+    else console.log('✓ Правила: крыша, плен, розыск, дефолт, дела недели, Ключ, заказы авторитетов, герой на поле');
   }
 } finally { await browser.close(); server.kill(); fs.rmSync(data, { recursive: true, force: true }); }
 if (failed) { console.log(`\nУпало сценариев: ${failed}`); process.exit(1); }

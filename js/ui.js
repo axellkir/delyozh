@@ -159,6 +159,13 @@ function drawMap() {
     c.fillStyle = pcol(o.owner); c.beginPath(); c.arc(X + dx, Y + dy, 17, 0, 7); c.fill(); c.strokeStyle = '#000'; c.lineWidth = 2; c.stroke();
     drawSprite(c, 'h_' + o.name, X + dx, Y + dy - 1, 32, walking ? now / 110 : o.id, walking ? 'walk' : null);
   }
+  // цели своих заказов: пульсирующее кольцо и значок
+  for (const j of viewP().jobs || []) {
+    const sp = jobSpot(j); if (!sp || !seen(sp.x, sp.y)) continue;
+    const X = sp.x * TS + TS / 2, Y = sp.y * TS + TS / 2, r = 26 + Math.sin(now / 220) * 3;
+    c.save(); c.setLineDash([6, 5]); c.lineWidth = 3; c.strokeStyle = '#ffd21a'; c.beginPath(); c.arc(X, Y, r, 0, 7); c.stroke(); c.restore();
+    drawSprite(c, JOB_ICON[j.type], X + 20, Y - 22, 20, 0);
+  }
   // всплывающие подписи: что подобрали, что захватили
   c.font = 'bold 16px "Trebuchet MS", sans-serif';
   for (const f of UI.fx) { f.t += 1 / 60; if (!seen(f.x, f.y)) continue; const X = f.x * TS + TS / 2, Y = f.y * TS - f.t * 34; c.globalAlpha = Math.max(0, 1 - f.t / 1.3); c.lineWidth = 3; c.strokeStyle = 'rgba(18,14,24,.9)'; c.strokeText(f.text, X, Y); c.fillStyle = f.col; c.fillText(f.text, X, Y); }
@@ -242,8 +249,9 @@ function drawBattle() {
     drawSprite(c, st.u, 0, -cs * 0.04, Math.floor(cs * 0.8 / 16) * 16 || 16, walking ? now / 110 : st.id, st.lunge || st.atk > 0 ? 'atk' : walking ? 'walk' : null); c.restore();
     if (st.flash > 0) { c.fillStyle = `rgba(255,40,40,${st.flash * 0.5})`; c.beginPath(); c.arc(X, Y, cs * 0.4, 0, 7); c.fill(); st.flash = Math.max(0, st.flash - 0.05); }
     if (st.defd) drawSprite(c, 'i_def', X - cs * 0.32, Y - cs * 0.3, 16, 0);
-    const label = String(st.n); c.font = `bold ${Math.round(cs * 0.22)}px sans-serif`;
-    const w = c.measureText(label).width + 8; c.fillStyle = own >= 0 ? pcol(own) : '#666'; c.fillRect(X + cs * 0.42 - w, Y + cs * 0.22, w, cs * 0.26); c.fillStyle = '#000'; c.fillText(label, X + cs * 0.42 - w / 2, Y + cs * 0.36);
+    // у героя вместо численности — здоровье, на золотой плашке
+    const label = st.hero ? `${st.hp}` : String(st.n); c.font = `bold ${Math.round(cs * 0.22)}px sans-serif`;
+    const w = c.measureText(label).width + 8; c.fillStyle = st.hero ? '#ffd21a' : own >= 0 ? pcol(own) : '#666'; c.fillRect(X + cs * 0.42 - w, Y + cs * 0.22, w, cs * 0.26); c.fillStyle = '#000'; c.fillText(label, X + cs * 0.42 - w / 2, Y + cs * 0.36);
   }
   for (const f of B.fx) {
     f.t += 1 / 60;
@@ -352,6 +360,14 @@ function refresh() {
     document.querySelectorAll('[data-ex]').forEach(el => el.onclick = () => { if (!locked()) openExchange(h, heroById(+el.dataset.ex)); });
   } else $('hCard').innerHTML = '<small>Выберите героя</small>';
   $('goBtn').disabled = watch || !h || (!h.dest && !UI.plan);
+  // заказы авторитетов: взятые — со сроком и кнопкой «где», предложения — с кнопкой «взять»
+  const jobs = p.jobs || [], offers = p.offers || [], full = jobs.length >= JOB_MAX;
+  $('jobsBox').innerHTML = !jobs.length && !offers.length ? '' : `<h3>Заказы авторитетов · ${jobs.length}/${JOB_MAX}</h3>`
+    + jobs.map(j => { const left = j.until - G.day; return `<div class="job"><b>${ico(JOB_ICON[j.type], 16)} ${jobTitle(j)}</b><small>${j.boss}: ${jobText(j)}</small><div class="jf"><span>${rewardText(j.reward)}${j.heat ? `, розыск −${j.heat}` : ''} · <span class="${left <= 1 ? 'late' : ''}">${left > 0 ? `ещё ${left} дн.` : 'последний день'}</span></span>${j.type === 'tribute' ? `<button class="sm" data-jt="${j.id}" ${(p.res[j.res] || 0) >= j.amt ? '' : 'disabled'}>Сдать</button>` : jobSpot(j) ? `<button class="sec sm" data-jw="${j.id}">Где</button>` : ''}</div></div>`; }).join('')
+    + (offers.length ? `<small style="color:#9a8fa0;display:block;margin:4px 0">Предлагают до понедельника:</small>` + offers.map(j => `<div class="job offer"><b>${ico(JOB_ICON[j.type], 16)} ${jobTitle(j)}</b><small>${j.boss} · срок ${j.days} дн. · награда: ${rewardText(j.reward)}${j.heat ? `, розыск −${j.heat}` : ''}</small><div class="jf"><span></span><button class="sm" data-jo="${j.id}" ${full || watch ? 'disabled' : ''}>Взять</button></div></div>`).join('') : '');
+  document.querySelectorAll('[data-jo]').forEach(el => el.onclick = () => { if (locked()) return; const r = jobTake(p, el.dataset.jo); if (r !== true) toast(r, true); refresh(); });
+  document.querySelectorAll('[data-jt]').forEach(el => el.onclick = () => { if (locked()) return; const j = jobs.find(x => x.id === el.dataset.jt); const r = j && jobTribute(p, j); if (r !== true) toast(r || 'Нет такого заказа', true); refresh(); });
+  document.querySelectorAll('[data-jw]').forEach(el => el.onclick = () => { const j = jobs.find(x => x.id === el.dataset.jw), sp = j && jobSpot(j); if (sp) centerOn(sp.x, sp.y); });
 }
 $('endBtn').onclick = () => { if (!locked()) endTurn(); };
 $('goBtn').onclick = () => continuePath();
