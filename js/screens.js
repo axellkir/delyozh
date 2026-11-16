@@ -37,10 +37,13 @@ function bindSlots(root, armies, rerender) {
 
 // ---------- город ----------
 let townDone = null;
-function openTown(t, hero) {
+function openTown(t, hero, tab) {
+  if (tab) TOWN_TAB = tab;
   return new Promise(res => { SLOT = null; townDone = res; $('town').hidden = false; $('toast').style.opacity = 0; renderTown(t, hero); });
 }
 function closeTown() { $('town').hidden = true; SLOT = null; refresh(); if (townDone) { const r = townDone; townDone = null; r(); } }
+// какая вкладка открыта в левой колонке окна города: стройка или заказы
+let TOWN_TAB = 'build';
 // значки зданий хозяйства и защиты
 const BICON = { adm1: 'r_gold', adm2: 'whitehouse', market: 'stall', bank: 'chest', garage: 'champ', gym: 'b_att', fence: 'o_fence', club: 'amp' };
 function renderTown(t, hero) {
@@ -68,6 +71,20 @@ function renderTown(t, hero) {
       <span class="st2">${ico('i_att', 12)}${U.att} ${ico('i_def', 12)}${U.def} ${ico('i_hp', 12)}${U.hp} ${ico('i_spd', 12)}${U.spd} · урон ${U.dmg[0]}–${U.dmg[1]}${U.shots ? ` · ${ico('i_shot', 12)}${U.shots}` : ''}</span>
       <span class="tr" title="${U.note || ''}">${U.note || ''}</span><span class="act">${act}</span></div>`;
   };
+  // заказы авторитетов: взятые — со сроком, общак сдаётся здесь же; предложения недели — с кнопкой «взять»
+  const jobs = p.jobs || [], offers = p.offers || [], full = jobs.length >= JOB_MAX;
+  const jcard = (j, offer) => {
+    const left = j.until - G.day, rw = `${rewardText(j.reward)}${j.heat ? `, розыск −${j.heat}` : ''}`;
+    const btn = offer ? `<button class="sm" data-jo="${j.id}" ${full ? 'disabled' : ''}>Взять</button>`
+      : j.type === 'tribute' ? `<button class="sm" data-jt="${j.id}" ${(p.res[j.res] || 0) >= j.amt ? '' : 'disabled'}>Сдать: ${j.amt} ${RES_GEN[j.res]}</button>`
+        : jobSpot(j) ? `<button class="sec sm" data-jw="${j.id}">Показать на карте</button>` : '';
+    return `<div class="jc ${offer ? 'offer' : ''}"><div class="jt">${ico(JOB_ICON[j.type], 24)}<b>${jobTitle(j)}</b></div><div class="jb">${j.boss}: «${jobText(j)}»</div>
+      <div class="jf"><span>Награда: <b>${rw}</b><br>${offer ? `Срок: ${j.days} дн. после того, как возьмёте` : `<span class="${left <= 1 ? 'late' : ''}">${left > 0 ? `Осталось: ${left} дн.` : 'Сегодня последний день'}</span>`}</span>${btn}</div></div>`;
+  };
+  const jobsHtml = `<h3>Взятые<span>${jobs.length} из ${JOB_MAX} · не успели к сроку — розыск +${JOB_FAIL_HEAT}</span></h3>
+    ${jobs.length ? `<div class="jgrid">${jobs.map(j => jcard(j, false)).join('')}</div>` : '<p class="jempty">Пока ничего не взято.</p>'}
+    <h3>Предлагают<span>${offers.length ? 'до следующего понедельника' : ''}</span></h3>
+    ${offers.length ? `<div class="jgrid">${offers.map(j => jcard(j, true)).join('')}</div>` : '<p class="jempty">Новых предложений нет — авторитеты зайдут в понедельник.</p>'}`;
   const upList = [...t.garrison, ...(hero ? hero.army : [])].map(x => upgradeCost(t, x)).filter(Boolean), upSum = upList.reduce((a, c) => a + c, 0), upMin = upList.length ? Math.min(...upList) : 0;
   const jl = myJailed(t.owner), held = jail().filter(j => j.at === t.id && j.captor === t.owner && j.hero.owner !== t.owner);
   const extra = [
@@ -81,9 +98,11 @@ function renderTown(t, hero) {
       <div class="chips">${RES.map(r => `<span class="chip">${resIco(r, 18)} ${p.res[r]}</span>`).join('')}</div><button id="tClose">Выйти <kbd>Esc</kbd></button></div>
     <div class="tb">
       <div class="tcol">
+        <div class="ttabs"><button class="${TOWN_TAB === 'build' ? 'on' : ''}" data-tab="build">${ico('m_brick', 16)} Стройка</button><button class="${TOWN_TAB === 'jobs' ? 'on' : ''}" data-tab="jobs">${ico('chest', 16)} Заказы авторитетов${(p.offers || []).length ? ` <b class="cnt">${p.offers.length}</b>` : ''}</button></div>
+        ${TOWN_TAB === 'jobs' ? jobsHtml : `
         <h3>Бойцы<span>${today ? 'сегодня уже строили — следующее здание завтра' : 'одно здание в день'}</span></h3>
         <div class="bgrid">${[1, 2, 3, 4, 5].map(i => tile('dw' + i) + tile('up' + i)).join('')}</div>
-        <h3>Хозяйство и защита</h3><div class="bgrid b3">${['adm1', 'adm2', 'market', 'bank', 'garage', 'gym', 'fence', 'club'].map(tile).join('')}</div>
+        <h3>Хозяйство и защита</h3><div class="bgrid b3">${['adm1', 'adm2', 'market', 'bank', 'garage', 'gym', 'fence', 'club'].map(tile).join('')}</div>`}
       </div>
       <div class="tcol">
         <h3>Найм<span>новые бойцы приходят по понедельникам</span></h3>
@@ -98,6 +117,10 @@ function renderTown(t, hero) {
   document.querySelectorAll('#townBox .tcol').forEach((c, i) => { c.scrollTop = keep[i] || 0; });
   const R = () => renderTown(t, hero), box = $('townBox');
   $('tClose').onclick = closeTown;
+  box.querySelectorAll('[data-tab]').forEach(el => el.onclick = () => { TOWN_TAB = el.dataset.tab; sfx('click'); R(); const c = box.querySelector('.tcol'); if (c) c.scrollTop = 0; });
+  box.querySelectorAll('[data-jo]').forEach(el => el.onclick = () => { const r = jobTake(p, el.dataset.jo); if (r !== true) toast(r, true); else sfx('coin'); R(); });
+  box.querySelectorAll('[data-jt]').forEach(el => el.onclick = () => { const j = jobs.find(x => x.id === el.dataset.jt); const r = j && jobTribute(p, j); if (r !== true) toast(r || 'Нет такого заказа', true); R(); });
+  box.querySelectorAll('[data-jw]').forEach(el => el.onclick = () => { const j = jobs.find(x => x.id === el.dataset.jw), sp = j && jobSpot(j); closeTown(); if (sp) centerOn(sp.x, sp.y); });
   box.querySelectorAll('[data-ran]').forEach(el => el.onclick = () => { const r = ransom(t, jl[+el.dataset.ran]); if (typeof r === 'string') toast(r, true); else { selectHero(r); hero = r; } R(); });
   if ($('bribeBtn')) $('bribeBtn').onclick = () => { const r = bribe(t.owner); toast(r === true ? 'Розыск снят' : r, true); R(); };
   if ($('upAll')) $('upAll').onclick = () => { if (!upgradeAll(t, hero)) toast('Не хватает бабла'); R(); };

@@ -38,6 +38,10 @@ for (const [w, h] of [[1440, 900], [1280, 760], [1920, 1080]]) {
   await new Promise(r => setTimeout(r, 400));
   await page.screenshot({ path: `${out}/town-${w}.png` });
   const m = await page.evaluate(() => [...document.querySelectorAll('#townBox .tcol')].map(c => [c.scrollHeight, c.clientHeight]));
+  await page.evaluate(() => { document.querySelector('[data-tab="jobs"]').click(); });
+  await new Promise(r => setTimeout(r, 200));
+  await page.screenshot({ path: `${out}/town-jobs-${w}.png` });
+  await page.evaluate(() => { document.querySelector('[data-tab="build"]').click(); });
   console.log(w, 'колонки города (высота содержимого / видно):', JSON.stringify(m), 'панель:', await page.evaluate(() => { const s = document.getElementById('sScroll'); return [s.scrollHeight, s.clientHeight]; }));
   await page.evaluate(() => { closeTown(); const hs = myHeroes(0); openExchange(hs[0], hs[1]); });
   await new Promise(r => setTimeout(r, 300));
