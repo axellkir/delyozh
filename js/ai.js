@@ -55,8 +55,9 @@ function aiTown(p, D) {
     for (const u of FACTIONS[t.fac].units.slice().reverse()) { const n = maxRecruit(t, u); if (n > 0) recruit(t, u, n, own); }
     if (p.res.gold > 2000) upgradeAll(t, own);
     if (own) aiPickup(own, t);
-    if (!h && myHeroes(p.id).length < D.heroes && p.res.gold >= HERO_COST + 3000) hireHero(t);
-    if (!h && !myHeroes(p.id).length && p.res.gold >= HERO_COST) hireHero(t); // без героя бригада не живёт
+    if (!heroAt(t.x, t.y)) { const j = myJailed(p.id).sort((a, b) => b.hero.lvl - a.hero.lvl)[0]; if (j && p.res.gold >= ransomOf(j) + 2000) ransom(t, j); } // прокачанного героя выгоднее вернуть, чем нанимать нового
+    if (!heroAt(t.x, t.y) && myHeroes(p.id).length < D.heroes && p.res.gold >= HERO_COST + 3000) hireHero(t);
+    if (!heroAt(t.x, t.y) && !myHeroes(p.id).length && p.res.gold >= HERO_COST) hireHero(t); // без героя бригада не живёт
   }
 }
 
@@ -97,7 +98,8 @@ function aiTargets(h, p, D) {
     if (!see(o.x, o.y) && o.t !== 'town') continue; // где стоят районы, знает вся Москва; остальное — только разведанное
     let w = 0, defs = [];
     if (o.t === 'pile') w = 3;
-    else if (o.t === 'mine' && o.owner !== h.owner) w = 4;
+    else if (o.t === 'mine' && o.owner !== h.owner) { w = 4; if (o.roof && o.roof.owner !== h.owner) defs = [{ army: o.roof.army }]; }
+    else if (o.t === 'mine' && o.roof && o.roof.owner !== h.owner && o.roof.known) { w = 5; defs = [{ army: o.roof.army }]; } // своя точка под чужой крышей
     else if (o.t === 'chest') w = 3;
     else if (o.t === 'art') w = o.art === 'key' ? 9 : 5;
     else if (o.t === 'bonus' && !o.seen.includes(h.id)) w = o.kind === 'mp' ? 0.8 : 2.5;

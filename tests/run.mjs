@@ -64,6 +64,52 @@ try {
     if (errors.length) { failed++; console.log(`✗ ${sc.name}: ${tail}`); errors.slice(0, 5).forEach(e => console.log('    ' + e.split('\n').slice(0, 4).join('\n    '))); }
     else console.log(`✓ ${sc.name}: ${r.over ? 'партия доиграна' : `партия не закончилась за ${DAYS} дней (не ошибка)`}, ${tail}`);
   }
+  // правила крыши и плена — на заранее собранном положении, без случайностей
+  {
+    const page = await browser.newPage(); const perr = [];
+    page.on('pageerror', e => perr.push(String(e && e.stack || e)));
+    await page.goto(url, { waitUntil: 'load' });
+    await page.addScriptTag({ content: bot });
+    const r = await page.evaluate(async () => {
+      genMap({ players: [{ name: 'А', fac: 'kach', kind: 'human' }, { name: 'Б', fac: 'rynok', kind: 'human' }] });
+      window.ask = async () => 0; window.curtain = async () => {}; SPEED = 0; window.AUTOBATTLE = true;
+      const out = {}, m = G.objs.find(o => o.t === 'mine'), res = MINE[m.kind].res, amt = mineOf(m).amt;
+      m.owner = 1; const full = dailyIncome(1)[res];
+      m.roof = { owner: 0, army: [{ u: 'gop', n: 5 }, null, null, null, null], known: false };
+      out.ownerCut = full - dailyIncome(1)[res]; out.roofGain = dailyIncome(0)[res] - 0; out.half = Math.ceil(amt / 2);
+      const base0 = (() => { const r0 = m.roof; m.roof = null; const v = dailyIncome(0)[res]; m.roof = r0; return v; })();
+      out.roofGain = dailyIncome(0)[res] - base0;
+      newWeek(); out.known = m.roof.known; out.told = G.players[1].inbox.some(x => x.includes('смотрящие'));
+      // плен: герой А проигрывает бригаде Б, его держат в городе Б; выкуп идёт Б
+      const h = myHeroes(0)[0], lvl = h.lvl, t0 = myTowns(0)[0], gold1 = G.players[1].res.gold;
+      t0.garrison = [{ u: 'shpana', n: 1 }, null, null, null, null];
+      await heroDies(h, 'проверка', 1);
+      const j = myJailed(0)[0];
+      out.jailed = !!j && j.captor === 1 && !!j.at && myHeroes(0).length === 0; out.alive = G.players[0].alive; out.price = j ? ransomOf(j) : -1; out.wantPrice = 1000 + 500 * lvl;
+      G.players[0].res.gold = 100; out.poor = typeof ransom(t0, j) === 'string';
+      G.players[0].res.gold = 50000; const back = ransom(t0, j);
+      out.back = typeof back === 'object' && myHeroes(0).length === 1 && myJailed(0).length === 0 && back.lvl === lvl && armyCount(back.army) > 0;
+      out.paid = G.players[1].res.gold - gold1;
+      // взяли город, где держат своего, — он выходит бесплатно
+      const h2 = myHeroes(0)[0]; await heroDies(h2, 'проверка', 1); const j2 = myJailed(0)[0], prison = G.objs.find(o => o.id === j2.at);
+      prison.owner = 1; for (const x of jail()) if (x.at === prison.id) x.captor = 0; out.free = ransomOf(j2) === 0;
+      return out;
+    });
+    await page.close();
+    const bad = [];
+    if (r.ownerCut !== r.half || r.roofGain !== r.half) bad.push(`крыша делит доход неверно: хозяин теряет ${r.ownerCut}, крыша получает ${r.roofGain}, ждали ${r.half}`);
+    if (!r.known || !r.told) bad.push('хозяин не узнал о крыше в понедельник');
+    if (!r.jailed) bad.push('проигравший герой не попал в плен в город победителя');
+    if (!r.alive) bad.push('бригада с городом распалась, хотя герой всего лишь в плену');
+    if (r.price !== r.wantPrice) bad.push(`выкуп ${r.price}, ждали ${r.wantPrice}`);
+    if (!r.poor) bad.push('выкуп прошёл без денег');
+    if (!r.back) bad.push('после выкупа герой не вернулся с уровнем и отрядом');
+    if (r.paid !== r.price) bad.push(`победителю пришло ${r.paid}, ждали ${r.price}`);
+    if (!r.free) bad.push('освобождённый герой всё ещё стоит денег');
+    bad.push(...perr);
+    if (bad.length) { failed++; console.log('✗ Правила: крыша и плен'); bad.forEach(e => console.log('    ' + e.split('\n').slice(0, 3).join('\n    '))); }
+    else console.log('✓ Правила: крыша делит доход пополам, хозяин узнаёт в понедельник; плен, выкуп победителю, бесплатное освобождение');
+  }
 } finally { await browser.close(); server.kill(); fs.rmSync(data, { recursive: true, force: true }); }
 if (failed) { console.log(`\nУпало сценариев: ${failed}`); process.exit(1); }
 console.log('\nВсе сценарии прошли.');

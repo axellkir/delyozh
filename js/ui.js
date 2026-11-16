@@ -88,7 +88,7 @@ function toast(t, force) { if (BOTTING && !force && !B) return; const el = $('to
 const sizeWord = n => (n < 5 ? 'Несколько' : n < 10 ? 'Группа' : n < 20 ? 'Толпа' : n < 50 ? 'Банда' : 'Орда');
 function objLabel(o) {
   if (o.t === 'town') return `${o.name} — ${o.owner >= 0 ? G.players[o.owner].name : 'ничей'}`;
-  if (o.t === 'mine') return `${mineOf(o).name}: +${mineOf(o).amt} ${RES_GEN[MINE[o.kind].res]} в день — ${o.owner >= 0 ? G.players[o.owner].name : 'ничей'}`;
+  if (o.t === 'mine') return `${mineOf(o).name}: +${mineOf(o).amt} ${RES_GEN[MINE[o.kind].res]} в день — ${o.owner >= 0 ? G.players[o.owner].name : 'ничей'}${roofSeen(o) ? ` · под крышей у бригады «${G.players[o.roof.owner].name}»: доход пополам` : ''}`;
   if (o.t === 'pile') return `${RES_NAME[o.res]}: ${o.amt}`;
   if (o.t === 'chest') return `${o.nm || 'Общак'} — бабло или опыт`;
   if (o.t === 'art') return `${o.nm ? o.nm + ' · ' : ''}${ARTS[o.art].name}: ${ARTS[o.art].desc}`;
@@ -96,6 +96,8 @@ function objLabel(o) {
   if (o.t === 'mob') { const n = armyCount(o.army), s = o.army.find(Boolean); return `${o.boss ? 'Кремлёвский полк' : sizeWord(n) + ': ' + UNITS[s.u].name.toLowerCase()} (${n < 5 ? '1–4' : n < 10 ? '5–9' : n < 20 ? '10–19' : n < 50 ? '20–49' : '50+'})`; }
   return '';
 }
+// крышу на точке видят те, кто её поставил, а хозяева — когда заметят (в понедельник)
+function roofSeen(o) { const v = viewP().id; return !!o.roof && o.roof.owner !== o.owner && (o.roof.owner === v || (o.owner === v && o.roof.known)); }
 // флажок владельца: полотнище из трёх полосок, которые колышутся по очереди
 function mapFlag(c, x, y, col, t) {
   c.fillStyle = '#1a1320'; c.fillRect(x - 1, y - 1, 3, 24);
@@ -128,7 +130,7 @@ function drawMap() {
       if (o.dist) mapTag(c, o.name, X, Y + 30, true);
       continue;
     }
-    if (o.t === 'mine') mapFlag(c, X + 14, Y - 26, o.owner >= 0 ? pcol(o.owner) : '#e8e8e8', now + o.id * 97);
+    if (o.t === 'mine') { mapFlag(c, X + 14, Y - 26, o.owner >= 0 ? pcol(o.owner) : '#e8e8e8', now + o.id * 97); if (roofSeen(o)) mapFlag(c, X - 20, Y - 18, pcol(o.roof.owner), now + o.id * 53); }
     if (o.nm && seen(o.x, o.y)) mapTag(c, o.lb || o.nm.split(':')[0], X, Y + 31);
     if (o.t === 'art') { c.fillStyle = `rgba(255,220,60,${0.25 + 0.15 * Math.sin(now / 300)})`; c.beginPath(); c.arc(X, Y, 20, 0, 7); c.fill(); }
     if (o.t === 'mob') { c.fillStyle = 'rgba(200,30,30,.35)'; c.beginPath(); c.arc(X, Y, 21, 0, 7); c.fill(); drawSprite(c, o.army.find(Boolean).u, X, Y - 1, o.boss ? 48 : 40, o.id); continue; }
@@ -323,7 +325,7 @@ function refresh() {
   $('endBtn').disabled = watch;
   netBox(); netDirty();
   $('pRes').innerHTML = RES.map(r => `<div>${resIco(r, 22)} ${p.res[r]}<small>+${inc[r]}/день</small></div>`).join('');
-  $('heroList').innerHTML = myHeroes(p.id).map(h => `<div class="li ${h.id === UI.sel ? 'on' : ''}" data-h="${h.id}"><span class="em">${heroIco(h, 32)}</span><span>${h.name}<br><small>ур. ${h.lvl}</small></span><span class="mpb"><i style="width:${Math.round(100 * h.mp / heroMaxMp(h))}%"></i></span></div>`).join('') || '<small>Героев нет — наймите в городе</small>';
+  $('heroList').innerHTML = myHeroes(p.id).map(h => `<div class="li ${h.id === UI.sel ? 'on' : ''}" data-h="${h.id}"><span class="em">${heroIco(h, 32)}</span><span>${h.name}<br><small>ур. ${h.lvl}</small></span><span class="mpb"><i style="width:${Math.round(100 * h.mp / heroMaxMp(h))}%"></i></span></div>`).join('') + myJailed(p.id).map(j => `<div class="li" style="opacity:.55;cursor:default"><span class="em">${heroIco(j.hero, 32)}</span><span>${j.hero.name}<br><small>${jailPlace(j)}</small></span></div>`).join('') || '<small>Героев нет — наймите в городе</small>';
   $('townList').innerHTML = myTowns(p.id).map(t => `<div class="li" data-t="${t.id}"><span class="em">${ico('t_' + t.fac, 32)}</span><span>${t.name}<br><small>${t.builtDay === G.day ? 'сегодня уже строили' : 'можно строить'}</small></span></div>`).join('') || '<small>Городов нет! Захватите любой за 7 дней</small>';
   document.querySelectorAll('[data-h]').forEach(el => el.onclick = () => { if (!locked()) selectHero(heroById(+el.dataset.h)); });
   document.querySelectorAll('[data-t]').forEach(el => el.onclick = () => { if (!locked()) { const t = G.objs.find(o => o.id === +el.dataset.t); openTown(t, heroAt(t.x, t.y)); } });
