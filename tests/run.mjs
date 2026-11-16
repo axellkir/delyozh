@@ -106,10 +106,30 @@ try {
       const buy0 = tradeBuy(); newWeek();
       out.defGold = G.players.map(x => x.res.gold).join(','); out.defTitle = G.week.title; out.buy = [buy0, tradeBuy(), tradeSell()].join(',');
       G.players.forEach(x => { x.res.gold = 8000; }); newWeek(); out.defOnce = G.players.every(x => x.res.gold >= 6000);
+      // дела недели: ваучеры дают доход, пирамида либо удваивает, либо сгорает
+      window.ask = async () => 0;
+      const Q = G.players[0]; Q.res.gold = 10000; Q.alive = true; const inc0 = dailyIncome(0).gold;
+      await weekDeal(Q, 'voucher'); out.voucher = Q.res.gold === 7500 && dailyIncome(0).gold - inc0 === 250;
+      Q.res.gold = 10000; await weekDeal(Q, 'pyramid'); out.pyrIn = Q.res.gold === 7000 && !!Q.pyramid && Q.pyramid.amt === 3000;
+      Q.pyramid.week = weekNo(); out.pyrWin = pyramidResolve(Q, 0.1).includes('6000') && Q.res.gold === 13000;
+      Q.pyramid = { amt: 3000, week: weekNo() }; out.pyrLose = pyramidResolve(Q, 0.9).includes('лопнула') && Q.res.gold === 13000;
+      // ключ: держали семь дней — победа; потеряли вместе с героем у местных — ключ вернулся в Кремль
+      G.over = false; G.objs = G.objs.filter(o => !(o.t === 'art' && o.art === 'key')); reindex();
+      const kt = myTowns(0)[0], kh = makeHero(0, 'kach', kt.x, kt.y); kh.army = [{ u: 'gop', n: 5 }, null, null, null, null]; kh.arts.push('key'); G.heroes.push(kh); G.keyHold = null;
+      checkWin(); out.keyStart = G.keyHold.owner === 0 && keyState().left === KEY_DAYS && !G.over;
+      await heroDies(kh, 'проверка'); out.keyBack = G.objs.some(o => o.t === 'art' && o.art === 'key') && !G.heroes.some(x => x.arts.includes('key'));
+      const kh2 = makeHero(0, 'kach', kt.x, kt.y); kh2.army = [{ u: 'gop', n: 5 }, null, null, null, null]; kh2.arts.push('key'); G.heroes.push(kh2);
+      G.objs = G.objs.filter(o => !(o.t === 'art' && o.art === 'key')); reindex();
+      checkWin(); G.day += KEY_DAYS - 1; checkWin(); out.keyNotYet = !G.over; G.day += 1; checkWin(); out.keyWin = G.over && G.winBy === 'key' && G.winner === 0;
       return out;
     });
     await page.close();
     const bad = [];
+    if (!r.voucher) bad.push('ваучеры: не списались деньги или не прибавился доход');
+    if (!r.pyrIn || !r.pyrWin || !r.pyrLose) bad.push(`пирамида: вклад ${r.pyrIn}, выигрыш ${r.pyrWin}, проигрыш ${r.pyrLose}`);
+    if (!r.keyStart) bad.push('ключ: отсчёт не начался');
+    if (!r.keyBack) bad.push('ключ не вернулся в Кремль после потери героя');
+    if (!r.keyNotYet || !r.keyWin) bad.push(`ключ: рано ${!r.keyNotYet}, победа ${r.keyWin}`);
     if (r.heat !== 70 || r.stars !== 3) bad.push(`розыск считается неверно: ${r.heat}, звёзд ${r.stars}`);
     if (!r.noBribe) bad.push('взятка прошла без денег');
     if (!r.raidSet) bad.push('при розыске 70 облава в понедельник не назначена');
@@ -129,7 +149,7 @@ try {
     if (!r.free) bad.push('освобождённый герой всё ещё стоит денег');
     bad.push(...perr);
     if (bad.length) { failed++; console.log('✗ Правила: крыша и плен'); bad.forEach(e => console.log('    ' + e.split('\n').slice(0, 3).join('\n    '))); }
-    else console.log('✓ Правила: крыша, плен и выкуп, розыск с облавой и взяткой, дефолт');
+    else console.log('✓ Правила: крыша, плен и выкуп, розыск с облавой и взяткой, дефолт, дела недели, победа по Ключу');
   }
 } finally { await browser.close(); server.kill(); fs.rmSync(data, { recursive: true, force: true }); }
 if (failed) { console.log(`\nУпало сценариев: ${failed}`); process.exit(1); }

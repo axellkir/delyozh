@@ -109,7 +109,7 @@ function aiTargets(h, p, D) {
     else if (o.t === 'mine' && o.owner !== h.owner) { w = 4; if (o.roof && o.roof.owner !== h.owner) defs = [{ army: o.roof.army }]; }
     else if (o.t === 'mine' && o.roof && o.roof.owner !== h.owner && o.roof.known) { w = 5; defs = [{ army: o.roof.army }]; } // своя точка под чужой крышей
     else if (o.t === 'chest') w = 3;
-    else if (o.t === 'art') w = o.art === 'key' ? 9 : 5;
+    else if (o.t === 'art') w = o.art === 'key' ? 14 : 5;
     else if (o.t === 'bonus' && !o.seen.includes(h.id)) w = o.kind === 'mp' ? 0.8 : 2.5;
     else if (o.t === 'mob') { w = 1.5; defs = [{ army: o.army }]; }
     else if (o.t === 'town' && o.owner !== h.owner) {
@@ -129,6 +129,7 @@ function aiTargets(h, p, D) {
     if (o.t !== 'mob' && zid >= 0) { const m = mobById(zid); if (m) defs.unshift({ army: m.army }); }
     out.push({ x: o.x, y: o.y, w, defs, key: 'o' + o.id });
   }
+  { const k = G.heroes.find(e => e.owner !== h.owner && e.arts.includes('key')); if (k && !peace) out.push({ x: k.x, y: k.y, w: 16, defs: [{ army: k.army, hero: k }], key: 'kh' + k.id }); } // ключ у чужих — отбирать любой ценой
   if (!peace) for (const e of G.heroes) if (e.owner !== h.owner && see(e.x, e.y) && !townAt(e.x, e.y)) out.push({ x: e.x, y: e.y, w: 7, defs: [{ army: e.army, hero: e }], key: 'h' + e.id });
   return out;
 }

@@ -108,37 +108,49 @@ function openExchange(a, b) {
 }
 
 // ---------- бой ----------
-function battleUI(on) { $('bui').hidden = !on; $('bSpells').hidden = true; if (on) refreshBattleUI(); }
+function battleUI(on) { $('bui').hidden = !on; closeSpells(); if (on) refreshBattleUI(); }
+const btnLbl = (icon, text, key) => `${ico(icon, 16)}<span class="lbl">${text}</span><kbd>${key}</kbd>`;
 function refreshBattleUI() {
   if (!B || B.quick) return;
   const nm = sd => sd.hero ? `${heroIco(sd.hero, 24)} ${sd.hero.name}` : sd.owner >= 0 ? `гарнизон (${G.players[sd.owner].name})` : 'местные';
   const s = B.active, sd = s && B.sides[s.side];
-  $('bTop').innerHTML = `${B.title} · ${ARENAS[B.arena].name} · раунд ${B.round}<br><span style="font-size:10px"><span style="color:${B.sides[0].owner >= 0 ? pcol(B.sides[0].owner) : '#aaa'}">${nm(B.sides[0])}</span> против <span style="color:${B.sides[1].owner >= 0 ? pcol(B.sides[1].owner) : '#aaa'}">${nm(B.sides[1])}</span>${s ? ` · ходят: ${unitIcon(s.u, 20)} ${UNITS[s.u].name}` : ''}${B.spell ? ' · выберите цель для «' + B.spell.name + '»' : ''}${B.need >= 0 && !(B.mirror && B.wait) ? ' · ждём соперника' : ''}</span>`;
-  $('bLog').innerHTML = B.log.join('<br>');
+  $('bTop').innerHTML = `${B.title} · ${ARENAS[B.arena].name} · раунд ${B.round}<br><span style="font-size:10px"><span style="color:${B.sides[0].owner >= 0 ? pcol(B.sides[0].owner) : '#aaa'}">${nm(B.sides[0])}</span> против <span style="color:${B.sides[1].owner >= 0 ? pcol(B.sides[1].owner) : '#aaa'}">${nm(B.sides[1])}</span>${s ? ` · ходят: ${UNITS[s.u].name}` : ''}${B.need >= 0 && !(B.mirror && B.wait) ? ' · ждём соперника' : ''}</span>`;
+  $('bLog').innerHTML = B.log.slice(0, 3).map(l => `<div>${l}</div>`).join('');
+  // очередь ходов: кто ходит сейчас и следующие
+  const col = st => (B.sides[st.side].owner >= 0 ? pcol(B.sides[st.side].owner) : '#777');
+  $('bQueue').innerHTML = [s, ...B.queue.filter(alive)].filter(Boolean).slice(0, 14).map((st, i) => `<span class="qi ${i ? '' : 'on'}" style="background:${col(st)}" title="${UNITS[st.u].name} ×${st.n}">${unitIcon(st.u, 32)}<b>${st.n}</b></span>`).join('');
   const human = s && !sd.auto && !(sd.remote && !B.mirror) && (!B.mirror || !!B.wait);
   ['bWait', 'bDef', 'bAuto'].forEach(id => { $(id).disabled = !human; });
   $('bCast').disabled = !(human && sd.hero && canCast(sd) && sd.hero.mana >= 4);
-  $('bCast').innerHTML = `${ico('i_pow', 16)} Понты (C)${sd && sd.hero ? ` ${ico('i_mana', 16)}${sd.hero.mana}` : ''}`;
+  $('bCast').innerHTML = `${ico('i_pow', 16)}<span class="lbl">Понты</span>${sd && sd.hero ? ` ${ico('i_mana', 14)}${sd.hero.mana}` : ''}<kbd>C</kbd>`;
+  $('bCast').classList.toggle('on', !$('bSpells').hidden);
+  if (!human && !$('bSpells').hidden) closeSpells();                              // ход ушёл — меню больше не нужно
+  if (B.spell && human) $('bInfo').innerHTML = `Выберите ${B.spell.target === 'enemy' ? 'вражеский' : 'свой'} отряд для «${B.spell.name}» · Esc или правый клик — отмена`;
 }
+function closeSpells() { $('bSpells').hidden = true; $('bCast').classList.remove('on'); }
+function cancelSpell() { if (!B) return; B.spell = null; $('bInfo').innerHTML = ''; refreshBattleUI(); }
 function toggleSpells() {
   if (!B || !B.active) return;
+  if (!$('bSpells').hidden) { closeSpells(); return; }
   const sd = B.sides[B.active.side];
-  if (!$('bSpells').hidden) { $('bSpells').hidden = true; return; }
-  if (!sd.hero || sd.auto) return;
-  $('bSpells').innerHTML = spellList(sd).map(sp => `<button data-sp="${sp.id}" ${sd.hero.mana < sp.cost || !canCast(sd) || (sp.ult && sd.ultUsed) ? 'disabled' : ''}>${ico(sp.ult ? 'i_star' : 's_' + sp.id, 20)} ${sp.ult ? 'Коронный номер: ' : ''}${sp.name} — ${sp.cost}${ico('i_mana', 14)}<small>${sp.desc(sd.st.pow)}</small></button>`).join('');
-  $('bSpells').hidden = false;
-  $('bSpells').querySelectorAll('[data-sp]').forEach(el => el.onclick = () => { $('bSpells').hidden = true; chooseSpell(el.dataset.sp); });
+  if (!sd.hero || sd.auto || $('bCast').disabled) return;
+  const why = sp => (sp.ult && sd.ultUsed ? 'уже был в этом бою' : !canCast(sd) ? 'в этом раунде уже понтовались' : sd.hero.mana < sp.cost ? 'мало понтов' : '');
+  $('bSpells').innerHTML = `<div class="sh"><span>Понты героя · ${ico('i_mana', 12)} ${sd.hero.mana}</span><button id="spClose" title="Закрыть (Esc)">${ico('i_x', 12)}</button></div>`
+    + spellList(sd).map(sp => `<button class="sp ${sp.ult ? 'ult' : ''}" data-sp="${sp.id}" ${why(sp) ? 'disabled' : ''}>${ico(sp.ult ? 'i_star' : 's_' + sp.id, 20)}<span>${sp.ult ? 'Коронный: ' : ''}${sp.name}</span><span class="c">${sp.cost}${ico('i_mana', 12)}</span><small>${sp.desc(sd.st.pow)}${why(sp) ? ` · <span class="why">${why(sp)}</span>` : ''}</small></button>`).join('');
+  $('bSpells').hidden = false; $('bCast').classList.add('on');
+  $('spClose').onclick = closeSpells;
+  $('bSpells').querySelectorAll('[data-sp]').forEach(el => el.onclick = () => { closeSpells(); chooseSpell(el.dataset.sp); });
 }
-$('goBtn').innerHTML = `${ico('i_play', 16)} Продолжить путь (Пробел)`;
-$('endBtn').innerHTML = `${ico('i_next', 18)} Конец хода (Enter)`;
-$('bWait').innerHTML = `${ico('i_wait', 16)} Ждать (W)`;
-$('bDef').innerHTML = `${ico('i_def', 16)} Оборона (D)`;
-$('bAuto').innerHTML = `${ico('i_bot', 16)} Авто (A)`;
-$('contBtn').innerHTML = `${ico('i_save', 22)} Продолжить`;
 $('bWait').onclick = () => battleWait();
 $('bDef').onclick = () => battleDefend();
 $('bCast').onclick = () => toggleSpells();
 $('bAuto').onclick = () => battleAuto();
+$('goBtn').innerHTML = `${ico('i_play', 16)} Продолжить путь (Пробел)`;
+$('endBtn').innerHTML = `${ico('i_next', 18)} Конец хода (Enter)`;
+$('bWait').innerHTML = btnLbl('i_wait', 'Ждать', 'W');
+$('bDef').innerHTML = btnLbl('i_def', 'Оборона', 'D');
+$('bAuto').innerHTML = btnLbl('i_bot', 'Авто', 'A');
+$('contBtn').innerHTML = `${ico('i_save', 22)} Продолжить`;
 
 // ---------- лобби ----------
 // Шесть мест. На каждом — человек, бот или никого; бригада, стартовый герой, для бота — сложность.
@@ -270,6 +282,7 @@ function startPlaying() { prerender(); $('menu').hidden = true; refresh(); begin
 function showVictory(p) {
   BOTTING = false;
   const bot = p.kind === 'bot', title = bot ? `${ico('i_bot', 24)} ${p.name} забирают Москву` : `${ico('i_cup', 24)} ${p.name} забирают Москву!`;
+  if (G.winBy === 'key') { ask(`${ico('a_key', 24)} ${p.name} забирают Москву!`, `<div style="font-size:18px">${KEY_DAYS} дней подряд бригада держала Ключ от Кремля. День ${G.day}. ${FACTIONS[p.fac].name} — хозяева города.</div>`, ['В меню'], { pid: -1 }).then(() => { if (NET.on) netLeave(); else { $('menu').hidden = false; renderMenu(); } }); return; }
   const text = bot ? `Людей в городе не осталось — всё поделили боты. День ${G.day}. Реванш?` : `Остальные бригады распались. День ${G.day}. ${FACTIONS[p.fac].name} — хозяева города.`;
   ask(title, `<div style="font-size:18px">${text}</div>`, ['В меню'], { pid: -1 })
     .then(() => { if (NET.on) netLeave(); else { $('menu').hidden = false; renderMenu(); } });

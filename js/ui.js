@@ -177,7 +177,7 @@ function drawMap() {
 }
 
 // ---------- бой ----------
-function battleGeom() { const cs = Math.min((VW - 40) / BW, (VH - 190) / BH, 92); return { cs, ox: (VW - cs * BW) / 2, oy: 56 + (VH - 190 - cs * BH) / 2 }; }
+function battleGeom() { const cs = Math.min((VW - 40) / BW, (VH - 210) / BH, 92); return { cs, ox: (VW - cs * BW) / 2, oy: 52 + (VH - 210 - cs * BH) / 2 }; } // снизу место под очередь, журнал и кнопки
 // Пол поля боя: рисуется один раз в мелком масштабе (16 точек на клетку) и растягивается без сглаживания
 function arenaFloor(id) {
   const A = ARENAS[id] || ARENAS.yard, cv2 = document.createElement('canvas'); cv2.width = BW * 16; cv2.height = BH * 16;
@@ -255,9 +255,6 @@ function drawBattle() {
   const ps = Math.max(3, Math.round(cs * 0.07));
   for (const p of B.parts) { p.x += p.vx; p.y += p.vy; p.vy += p.g; p.life -= p.d; c.globalAlpha = Math.max(0, p.life); c.fillStyle = p.col; c.fillRect(Math.round(ox + p.x * cs - ps / 2), Math.round(oy + p.y * cs - ps / 2), ps, ps); }
   c.globalAlpha = 1; B.parts = B.parts.filter(p => p.life > 0);
-  // очередь ходов
-  const q = [s, ...B.queue.filter(alive)].filter(Boolean).slice(0, 10);
-  q.forEach((st, i) => { const X = 20 + i * 46, Y = VH - 120; c.fillStyle = B.sides[st.side].owner >= 0 ? pcol(B.sides[st.side].owner) : '#777'; c.fillRect(X, Y, 40, 40); drawSprite(c, st.u, X + 20, Y + 20, 32, 0); if (i === 0) { c.strokeStyle = '#fff'; c.lineWidth = 3; c.strokeRect(X, Y, 40, 40); } });
 }
 
 // ---------- ввод ----------
@@ -269,7 +266,12 @@ cv.addEventListener('mousemove', e => {
 });
 cv.addEventListener('mousedown', e => {
   audioInit();
-  if (B) { if (UI.bh && e.button === 0) battleClickCell(UI.bh.cx, UI.bh.cy, UI.bh.fx, UI.bh.fy); return; }
+  if (B) {
+    if (!$('bSpells').hidden) { closeSpells(); return; }                       // клик мимо меню понтов просто закрывает его
+    if (B.spell && e.button === 2) { cancelSpell(); return; }
+    if (UI.bh && e.button === 0) battleClickCell(UI.bh.cx, UI.bh.cy, UI.bh.fx, UI.bh.fy);
+    return;
+  }
   if (locked() || !G || G.over || e.button !== 0) return;
   const m = cellFromMouse(e), tx = Math.floor((m.x + UI.cam.x) / TS), ty = Math.floor((m.y + UI.cam.y) / TS);
   mapClick(tx, ty);
@@ -277,7 +279,8 @@ cv.addEventListener('mousedown', e => {
 // правый клик — проложить путь куда угодно, в том числе к своему герою для обмена
 cv.addEventListener('contextmenu', e => {
   e.preventDefault();
-  if (B || locked() || !G || G.over) return;
+  if (B) { if (B.spell) cancelSpell(); else if (!$('bSpells').hidden) closeSpells(); return; }
+  if (locked() || !G || G.over) return;
   const h = selHero(), m = cellFromMouse(e), tx = Math.floor((m.x + UI.cam.x) / TS), ty = Math.floor((m.y + UI.cam.y) / TS);
   if (!h || !inMap(tx, ty) || !seen(tx, ty)) return;
   const plan = findPath(h, tx, ty);
@@ -299,7 +302,11 @@ addEventListener('keydown', e => {
   audioInit();
   if (e.target.tagName === 'INPUT') return;
   UI.keys[e.code] = true;
-  if (B) { if (e.code === 'KeyW') battleWait(); if (e.code === 'KeyD') battleDefend(); if (e.code === 'KeyC') toggleSpells(); if (e.code === 'KeyA') battleAuto(); return; }
+  if (B) {
+    if (e.code === 'Escape') { if (!$('bSpells').hidden) closeSpells(); else if (B.spell) cancelSpell(); return; }
+    if (e.code === 'KeyW') battleWait(); if (e.code === 'KeyD') battleDefend(); if (e.code === 'KeyC') toggleSpells(); if (e.code === 'KeyA') battleAuto();
+    return;
+  }
   if (e.code === 'KeyM') { musicOn = !musicOn; toast(musicOn ? 'Музыка вкл' : 'Музыка выкл'); }
   if (!G || anyOverlay() || locked()) return;
   if (e.code === 'Enter') { e.preventDefault(); endTurn(); }
@@ -322,6 +329,8 @@ function refresh() {
   $('pName').innerHTML = `${ico('t_' + p.fac, 28)} ${esc(p.name)}`; $('pName').style.color = p.col;
   $('pDay').innerHTML = NET.on && G.sim && !BOTTING ? (watch ? `<b>${ico('i_wait', 16)} День сдан. Ждём остальных…</b>` : `<b>${ico('i_net', 16)} Общий день: все ходят сразу</b> · неделя ${weekNo()}, день ${dayOfWeek()}`)
     : watch ? `<b style="color:${curP().col}">${ico(isBot(G.cur) ? 'i_bot' : 'i_net', 16)} Ходит: ${esc(curP().name)}…</b>` : `Неделя ${weekNo()}, день ${dayOfWeek()} · всего дней: ${G.day}`;
+  { const k = keyState(); if (k) $('pDay').innerHTML += `<br><span style="color:${pcol(k.owner)}">${ico('a_key', 14)} Ключ от Кремля у «${esc(G.players[k.owner].name)}»: ещё ${Math.max(0, k.left)} дн.</span>`; }
+  { const k = keyState(); if (k) $('pDay').innerHTML += `<br><span style="color:${pcol(k.owner)}">${ico('a_key', 14)} Ключ от Кремля у «${esc(G.players[k.owner].name)}»: ещё ${Math.max(0, k.left)} дн.</span>`; }
   $('endBtn').disabled = watch;
   netBox(); netDirty();
   const st = heatStars(p);

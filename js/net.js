@@ -240,7 +240,7 @@ async function simCollect() {
     for (const p of G.players) {                      // ходы ботов — после людей
       if (G.over || !p.alive || p.kind !== 'bot') continue;
       G.cur = p.id; BOTTING = true; turnEffects(p); refresh();
-      try { await sleep(250); await botTurn(p); } catch (e) { console.error('Ошибка в ходе бота', e); BUSY = false; }
+      try { await sleep(250); await raidCheck(p); if (!G.over) await weekDeal(p); if (!G.over) await botTurn(p); } catch (e) { console.error('Ошибка в ходе бота', e); BUSY = false; }
       BOTTING = false;
     }
     if (!G.over) { G.day++; if (dayOfWeek() === 1) newWeek(); G.turnNo = (G.turnNo || 0) + 1; G.cur = Math.max(0, G.players.findIndex(p => p.alive)); }

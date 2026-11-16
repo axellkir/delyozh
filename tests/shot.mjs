@@ -85,7 +85,12 @@ for (const [name, x, y] of [['center', info.cx - 1, info.cy], ['home', info.home
 await page.evaluate(() => { const t = myTowns(0)[0]; Object.assign(t.built, { dw2: true, dw3: true, adm1: true, gym: true, up1: true, market: true }); t.avail[FACTIONS[t.fac].units[1]] = 9; const jh = makeHero(0, t.fac, 0, 0); jh.lvl = 4; jail().push({ hero: jh, captor: 1, at: myTowns(1)[0].id, day: 1 }); const jh2 = makeHero(0, t.fac, 0, 0); jail().push({ hero: jh2, captor: -1, at: 0, day: 1 }); openTown(t, heroAt(t.x, t.y)); document.getElementById('townBox').parentElement.scrollTop = 9999; document.getElementById('townBox').scrollTop = 9999; });
 await new Promise(r => setTimeout(r, 300));
 await page.screenshot({ path: path.join(out, 'town.png') });
-await page.evaluate(() => { closeTown(); SPEED = 1; });
+await page.evaluate(() => { closeTown(); window.__deal = weekDeal(G.players[0], 'putsch'); });
+await new Promise(r => setTimeout(r, 300));
+await page.screenshot({ path: path.join(out, 'deal.png') });
+await page.evaluate(() => { document.querySelector('#mBtns button').click(); });
+await new Promise(r => setTimeout(r, 200));
+await page.evaluate(() => { const b = document.querySelector('#mBtns button'); if (b) b.click(); document.querySelectorAll('.ov').forEach(e => { e.hidden = true; }); SPEED = 1; });
 // бои на разных полях: штурм рынка с забором, парк, подвал, Красная площадь
 for (const [arena, fence] of [['market', true], ['park', false], ['basement', false], ['kremlin', false], ['street', false], ['gym', true]]) {
   await page.evaluate((arena, fence) => {
