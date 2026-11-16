@@ -1,7 +1,7 @@
 'use strict';
 // Пиксельные спрайты бойцов 16×16, нарисованные кодом: без файлов картинок и одинаковые на любой системе.
 // Люди собираются из одного «манекена» с параметрами (шапка, причёска, одежда, предмет в руке),
-// техника и звери рисуются прямоугольниками. У каждого два кадра — бойцы слегка «дышат».
+// техника и звери рисуются прямоугольниками. У каждого пять кадров: два покоя, два шага и удар.
 // Если спрайта нет, drawSprite вернёт false.
 
 const SPRITES = {}; // id → { frames: [canvas, canvas], url }
@@ -27,25 +27,31 @@ function sprCanvas(g) {
 }
 
 // ---------- манекен ----------
-function sprHuman(o, bob) {
-  const g = sprGrid(), d = bob ? 1 : 0, skin = o.skin || '#f2c49b', top = o.top || '#888', pants = o.pants || '#3b3f52', shoe = o.shoe || '#22202a', w = o.fat ? 1 : 0;
-  const U = (x, y, ww, hh, c) => sprRect(g, x, y + d, ww, hh, c); // верх тела: на втором кадре опускается на пиксель
+// pose: 0 и 1 — покой (на втором кадре верх тела опущен на пиксель), 'wa' и 'wb' — шаг (ноги врозь / вместе, одна поднята),
+// 'atk' — удар: выпад вперёд, рука вытянута, предмет вынесен перед собой
+function sprHuman(o, pose) {
+  const wa = pose === 'wa', wb = pose === 'wb', atk = pose === 'atk';
+  const g = sprGrid(), d = pose === 1 || wa || atk ? 1 : 0, sx = atk ? 1 : 0, skin = o.skin || '#f2c49b', top = o.top || '#888', pants = o.pants || '#3b3f52', shoe = o.shoe || '#22202a', w = o.fat ? 1 : 0;
+  const U = (x, y, ww, hh, c) => sprRect(g, x + sx, y + d, ww, hh, c); // верх тела
+  const I = (x, y, ww, hh, c) => U(x + (atk ? 1 : 0), y - (atk ? 3 : 0), ww, hh, c); // предмет в руке: при ударе вынесен вперёд и вверх
   // ноги
-  if (o.robe) { sprRect(g, 4, 11, 8, 5, top); sprRect(g, 4, 15, 8, 1, sprShade(top, 0.7)); sprRect(g, 7, 11, 2, 4, sprShade(top, 1.25)); }
+  const lx = wa || atk ? 4 : wb ? 6 : 5, rx = wa || atk ? 10 : wb ? 8 : 9;
+  if (o.robe) { const sw = wa ? -1 : wb ? 1 : 0; sprRect(g, 4 + sx, 11, 8, 4, top); sprRect(g, 4 + sx + sw, 15, 8, 1, sprShade(top, 0.7)); sprRect(g, 7 + sx, 11, 2, 4, sprShade(top, 1.25)); }
   else {
-    const leg = o.shorts ? skin : pants;
-    sprRect(g, 5, 11, 2, 4, leg); sprRect(g, 9, 11, 2, 4, leg);
-    if (o.shorts) { sprRect(g, 5, 11, 6, 1, pants); sprRect(g, 5, 12, 2, 1, pants); sprRect(g, 9, 12, 2, 1, pants); }
-    else sprRect(g, 5, 11, 6, 1, pants);
+    const leg = o.shorts ? skin : pants, lift = wb ? 1 : 0; // на шаге «вместе» задняя нога приподнята
+    sprRect(g, lx, 11, 2, 4, leg); sprRect(g, rx, 11, 2, 4 - lift, leg);
+    sprRect(g, 5, 11, 6, 1, pants);
+    if (o.shorts) { sprRect(g, lx, 12, 2, 1, pants); sprRect(g, rx, 12, 2, 1, pants); }
     if (o.coat) sprRect(g, 4, 11, 8, 2, sprShade(top, 0.85));
-    if (o.stripe && !o.shorts) { sprRect(g, 5, 12, 1, 3, o.stripe); sprRect(g, 10, 12, 1, 3, o.stripe); }
-    sprRect(g, 4, 15, 3, 1, shoe); sprRect(g, 9, 15, 3, 1, shoe);
+    if (o.stripe && !o.shorts) { sprRect(g, lx, 12, 1, 3, o.stripe); sprRect(g, rx + 1, 12, 1, 3 - lift, o.stripe); }
+    sprRect(g, lx - 1, 15, 3, 1, shoe); sprRect(g, rx, 15 - lift, 3, 1, shoe);
   }
   // торс, руки
   U(5 - w, 6, 6 + 2 * w, 5, top);
   if (!o.robe && !o.coat) U(5 - w, 10, 6 + 2 * w, 1, sprShade(top, 0.75));
-  U(4 - w, 6, 1, 4, o.sleeve || top); U(11 + w, 6, 1, 4, o.sleeve || top);
-  U(4 - w, 10, 1, 1, skin); U(11 + w, 10, 1, 1, skin);
+  U(4 - w, 6, 1, 4, o.sleeve || top); U(4 - w, 10 - (wb ? 1 : 0), 1, 1, skin);
+  if (atk) { U(11 + w, 7, 3, 1, o.sleeve || top); U(14 + w, 7, 1, 1, skin); }                  // рука вытянута
+  else { U(11 + w, 6, 1, 4, o.sleeve || top); U(11 + w, 10 - (wa ? 1 : 0), 1, 1, skin); }
   if (o.shirt) { U(7, 6, 2, 3, o.shirt); if (o.tie) U(7, 6, 1, 3, o.tie); }
   if (o.print) { U(7, 8, 2, 1, o.print); U(6, 7, 1, 1, o.print); U(9, 7, 1, 1, o.print); }
   if (o.camo) { U(5, 7, 2, 1, o.camo); U(8, 8, 2, 1, o.camo); U(6, 9, 2, 1, o.camo); }
@@ -77,16 +83,16 @@ function sprHuman(o, bob) {
   }
   // предмет в руке
   switch (o.item) {
-    case 'bat': U(12, 3, 1, 7, '#b98b4a'); U(12, 3, 1, 2, '#e0b872'); break;
-    case 'bag': for (let j = 0; j < 4; j++) for (let i = 0; i < 4; i++) U(11 + i, 10 + j, 1, 1, (i + j) % 2 ? '#e8e8f0' : j % 2 ? '#c8372d' : '#2a5fc0'); break;
-    case 'guitar': U(9, 8, 3, 3, '#b3261e'); U(10, 9, 1, 1, '#f2d9a0'); U(12, 7, 1, 1, '#8a5a2a'); U(13, 6, 1, 1, '#8a5a2a'); U(14, 5, 1, 1, '#8a5a2a'); break;
-    case 'baton': U(12, 5, 1, 6, '#0e0e14'); break;
-    case 'shield': U(11, 5, 4, 7, '#8fa8b8'); U(11, 5, 4, 1, '#c3d3dd'); U(12, 7, 2, 1, '#4f6676'); break;
-    case 'orb': U(12, 7, 3, 3, '#6ef0ff'); U(13, 8, 1, 1, '#fff'); U(13, 6, 1, 1, '#b8fbff'); break;
-    case 'cart': U(12, 9, 3, 4, '#a8433a'); U(12, 9, 3, 1, '#d0766b'); U(13, 8, 1, 1, '#8ac06a'); sprRect(g, 12, 14, 1, 1, '#222'); sprRect(g, 14, 14, 1, 1, '#222'); break;
-    case 'gloves': U(3 - w, 9, 2, 2, '#d2262e'); U(11 + w, 9, 2, 2, '#d2262e'); break;
-    case 'bottle': U(12, 8, 1, 3, '#3aa860'); U(12, 7, 1, 1, '#ddd'); break;
-    case 'papers': U(11, 8, 3, 3, '#f4f4f4'); U(12, 9, 1, 1, '#8a8fb0'); break;
+    case 'bat': I(12, 3, 1, 7, '#b98b4a'); I(12, 3, 1, 2, '#e0b872'); break;
+    case 'bag': for (let j = 0; j < 4; j++) for (let i = 0; i < 4; i++) I(11 + i, 10 + j, 1, 1, (i + j) % 2 ? '#e8e8f0' : j % 2 ? '#c8372d' : '#2a5fc0'); break;
+    case 'guitar': I(9, 8, 3, 3, '#b3261e'); I(10, 9, 1, 1, '#f2d9a0'); I(12, 7, 1, 1, '#8a5a2a'); I(13, 6, 1, 1, '#8a5a2a'); I(14, 5, 1, 1, '#8a5a2a'); break;
+    case 'baton': I(12, 5, 1, 6, '#0e0e14'); break;
+    case 'shield': I(11, 5, 4, 7, '#8fa8b8'); I(11, 5, 4, 1, '#c3d3dd'); I(12, 7, 2, 1, '#4f6676'); break;
+    case 'orb': I(12, 7, 3, 3, '#6ef0ff'); I(13, 8, 1, 1, '#fff'); I(13, 6, 1, 1, '#b8fbff'); break;
+    case 'cart': { const cx = atk ? 1 : 0; U(12 + cx, 9, 3, 4, '#a8433a'); U(12 + cx, 9, 3, 1, '#d0766b'); U(13 + cx, 8, 1, 1, '#8ac06a'); sprRect(g, 12 + sx + cx, 14, 1, 1, '#222'); sprRect(g, 14 + sx + cx, 14, 1, 1, '#222'); break; }
+    case 'gloves': U(3 - w, 9, 2, 2, '#d2262e'); if (atk) U(13 + w, 6, 2, 2, '#d2262e'); else U(11 + w, 9, 2, 2, '#d2262e'); break;
+    case 'bottle': I(12, 8, 1, 3, '#3aa860'); I(12, 7, 1, 1, '#ddd'); break;
+    case 'papers': I(11, 8, 3, 3, '#f4f4f4'); I(12, 9, 1, 1, '#8a8fb0'); break;
     default: break;
   }
   return g;
@@ -94,38 +100,43 @@ function sprHuman(o, bob) {
 
 // ---------- техника и звери ----------
 const SPR_CUSTOM = {
-  champ(g, b) { // чёрная «бэха»
+  champ(g, b, pose) { // чёрная «бэха»
     const y = b ? 1 : 0, K = '#1c1c24';
     sprRect(g, 1, 9 - y, 14, 4, K); sprRect(g, 4, 6 - y, 7, 3, K); sprRect(g, 1, 9 - y, 14, 1, '#34343f');
     sprRect(g, 5, 7 - y, 2, 2, '#8cc8e8'); sprRect(g, 8, 7 - y, 2, 2, '#8cc8e8');
     sprRect(g, 14, 10 - y, 1, 1, '#ffe27a'); sprRect(g, 1, 10 - y, 1, 1, '#e33'); sprRect(g, 14, 11 - y, 1, 1, '#9a9aa6');
-    sprRect(g, 3, 12, 3, 3, '#0d0d12'); sprRect(g, 4, 13, 1, 1, '#b0b0b8'); sprRect(g, 10, 12, 3, 3, '#0d0d12'); sprRect(g, 11, 13, 1, 1, '#b0b0b8');
+    const hub = pose === 'wb' ? 12 : 13; // колёса крутятся: на шаге ступица прыгает
+    sprRect(g, 3, 12, 3, 3, '#0d0d12'); sprRect(g, 4, hub, 1, 1, '#b0b0b8'); sprRect(g, 10, 12, 3, 3, '#0d0d12'); sprRect(g, 11, hub, 1, 1, '#b0b0b8');
   },
-  fura(g, b) { // фура
+  fura(g, b, pose) { // фура
     const y = b ? 1 : 0;
     sprRect(g, 1, 4 - y, 9, 8, '#e8e8e0'); sprRect(g, 1, 7 - y, 9, 1, '#2a6fd0'); sprRect(g, 1, 11 - y, 9, 1, '#b8b8b0');
     sprRect(g, 10, 6 - y, 5, 6, '#c0392b'); sprRect(g, 12, 7 - y, 2, 2, '#8cc8e8'); sprRect(g, 14, 10 - y, 1, 1, '#ffe27a'); sprRect(g, 10, 11 - y, 5, 1, '#8a281e');
-    for (const x of [2, 6, 11]) { sprRect(g, x, 12, 3, 3, '#0d0d12'); sprRect(g, x + 1, 13, 1, 1, '#b0b0b8'); }
+    for (const x of [2, 6, 11]) { sprRect(g, x, 12, 3, 3, '#0d0d12'); sprRect(g, x + 1, pose === 'wb' ? 12 : 13, 1, 1, '#b0b0b8'); }
   },
-  biker(g, b) { // байкер на мотоцикле
+  biker(g, b, pose) { // байкер на мотоцикле
     const y = b ? 1 : 0, S = '#f2c49b';
-    sprRect(g, 1, 11, 4, 4, '#0d0d12'); sprRect(g, 2, 12, 2, 2, '#9a9aa6'); sprRect(g, 11, 11, 4, 4, '#0d0d12'); sprRect(g, 12, 12, 2, 2, '#9a9aa6');
+    const hy = pose === 'wb' ? 13 : 12, hh = pose === 'wb' ? 1 : 2;
+    sprRect(g, 1, 11, 4, 4, '#0d0d12'); sprRect(g, 2, hy, 2, hh, '#9a9aa6'); sprRect(g, 11, 11, 4, 4, '#0d0d12'); sprRect(g, 12, hy, 2, hh, '#9a9aa6');
+    if (pose === 'wa' || pose === 'wb') sprRect(g, 0, 10 - y, 1, 1, '#c8c8d0'); // выхлоп
     sprRect(g, 4, 10 - y, 8, 2, '#4a4a55'); sprRect(g, 6, 9 - y, 3, 1, '#c0392b'); sprRect(g, 1, 10 - y, 3, 1, '#c8c8d0');
     sprRect(g, 5, 5 - y, 4, 5, '#19191f'); sprRect(g, 9, 6 - y, 1, 1, '#19191f'); sprRect(g, 10, 7 - y, 2, 1, '#19191f'); sprRect(g, 12, 6 - y, 1, 3, '#c8c8d0');
     sprRect(g, 6, 2 - y, 3, 3, S); sprRect(g, 6, 1 - y, 3, 1, '#c0392b'); sprRect(g, 5, 2 - y, 1, 2, '#c0392b'); sprRect(g, 8, 3 - y, 1, 1, SPR_INK); sprRect(g, 6, 4 - y, 3, 1, '#6b4a2a');
   },
-  rat(g, b) {
+  rat(g, b, pose) {
     const y = b ? 1 : 0, C = '#8a7f78';
     sprRect(g, 4, 10 - y, 7, 3, C); sprRect(g, 5, 9 - y, 5, 1, C); sprRect(g, 10, 9 - y, 3, 3, C); sprRect(g, 13, 11 - y, 1, 1, '#e79ab0');
     sprRect(g, 10, 8 - y, 1, 1, '#e79ab0'); sprRect(g, 12, 10 - y, 1, 1, SPR_INK);
     sprRect(g, 3, 11 - y, 1, 1, '#e79ab0'); sprRect(g, 2, 10 - y, 1, 1, '#e79ab0'); sprRect(g, 1, 10 - y, 1, 1, '#e79ab0');
-    sprRect(g, 5, 13 - y, 1, 1, '#5d5550'); sprRect(g, 9, 13 - y, 1, 1, '#5d5550');
+    const sp = pose === 'wa' || pose === 'atk' ? 1 : pose === 'wb' ? -1 : 0; // лапы врозь / вместе
+    sprRect(g, 5 - sp, 13 - y, 1, 1, '#5d5550'); sprRect(g, 9 + sp, 13 - y, 1, 1, '#5d5550');
   },
-  dog(g, b) {
+  dog(g, b, pose) {
     const y = b ? 1 : 0, C = '#b07a3c';
     sprRect(g, 3, 8, 8, 4, C); sprRect(g, 4, 9, 3, 2, '#8f5f28'); sprRect(g, 10, 5 - y, 4, 4, C); sprRect(g, 10, 4 - y, 2, 1, '#6e4518');
     sprRect(g, 13, 7 - y, 2, 2, '#d1a56e'); sprRect(g, 14, 7 - y, 1, 1, SPR_INK); sprRect(g, 12, 6 - y, 1, 1, SPR_INK);
-    sprRect(g, 3, 12, 2, 3, C); sprRect(g, 9, 12, 2, 3, C); sprRect(g, 2, 6 + y, 1, 3, C);
+    const sp = pose === 'wa' || pose === 'atk' ? 1 : pose === 'wb' ? -1 : 0;
+    sprRect(g, 3 - sp, 12, 2, 3, C); sprRect(g, 9 + sp, 12, 2, 3, C); sprRect(g, 2, 6 + y, 1, 3, C);
   },
 };
 
@@ -153,20 +164,21 @@ const SPR_HUMANS = {
 
 function buildSprites() {
   const put = (id, make) => {
-    const frames = [0, 1].map(b => sprCanvas(sprOutline(make(b))));
+    const cv = pose => sprCanvas(sprOutline(make(pose))), frames = [cv(0), cv(1)];
     const big = document.createElement('canvas'); big.width = big.height = 64;
     const x = big.getContext('2d'); x.imageSmoothingEnabled = false; x.drawImage(frames[0], 0, 0, 64, 64);
-    SPRITES[id] = { frames, url: big.toDataURL() };
+    SPRITES[id] = { frames, walk: [cv('wa'), cv('wb')], atk: [cv('atk')], url: big.toDataURL() };
   };
-  for (const id in SPR_HUMANS) put(id, b => sprHuman(SPR_HUMANS[id], b));
-  for (const id in SPR_CUSTOM) put(id, b => { const g = sprGrid(); SPR_CUSTOM[id](g, b); return g; });
+  for (const id in SPR_HUMANS) put(id, pose => sprHuman(SPR_HUMANS[id], pose));
+  for (const id in SPR_CUSTOM) put(id, pose => { const g = sprGrid(); SPR_CUSTOM[id](g, pose === 1 || pose === 'wb' || pose === 'atk' ? 1 : 0, pose); return g; });
 }
 try { buildSprites(); } catch (e) { console.warn('Спрайты не собрались', e); }
 
 // Рисует спрайт с центром в (cx, cy). Возвращает false, если такого спрайта нет.
-function drawSprite(c, id, cx, cy, size, phase) {
+// mode: 'walk' — кадры шага, 'atk' — кадр удара; без него — покой. У значков (без таких кадров) всегда покой.
+function drawSprite(c, id, cx, cy, size, phase, mode) {
   const s = SPRITES[id]; if (!s) return false;
-  const f = s.frames[Math.floor(performance.now() / 420 + (phase || 0)) % 2], sm = c.imageSmoothingEnabled;
+  const set = (mode && s[mode]) || s.frames, f = set[Math.floor(performance.now() / 420 + (phase || 0)) % set.length], sm = c.imageSmoothingEnabled;
   c.imageSmoothingEnabled = false;
   c.drawImage(f, Math.round(cx - size / 2), Math.round(cy - size / 2), size, size);
   c.imageSmoothingEnabled = sm;

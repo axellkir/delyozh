@@ -148,8 +148,8 @@ function buildIcons() {
     SPRITES[id] = { frames: [c, c], url: trim(c) };
   }
   for (const name in HERO_LOOKS) {
-    const frames = [0, 1].map(b => sprCanvas(sprOutline(sprHuman(HERO_LOOKS[name], b))));
-    SPRITES['h_' + name] = { frames, url: big(frames[0]) };
+    const cv = pose => sprCanvas(sprOutline(sprHuman(HERO_LOOKS[name], pose))), frames = [cv(0), cv(1)];
+    SPRITES['h_' + name] = { frames, walk: [cv('wa'), cv('wb')], atk: [cv('atk')], url: big(frames[0]) };
   }
 }
 try { buildIcons(); } catch (e) { console.warn('Значки не собрались', e); }

@@ -126,7 +126,7 @@ function floatText(s, text, col, delay) { B.fx.push({ x: s.x, y: s.y, text, col,
 async function strike(a, t, ranged, main) {
   const U = UNITS[a.u], sd = B.sides[a.side];
   if (ranged) {
-    a.shots--; B.fx.push({ shot: true, fx0: a.x, fy0: a.y, x: t.x, y: t.y, t: 0 }); sfx('shoot'); await sleep(260);
+    a.shots--; a.atk = 1; B.fx.push({ shot: true, fx0: a.x, fy0: a.y, x: t.x, y: t.y, t: 0 }); sfx('shoot'); await sleep(260);
     if (UNITS[t.u].dodge && Math.random() < 0.3) { floatText(t, 'мимо!', '#9cf'); blog(`${sName(t)} увернулись от выстрела`); await sleep(200); return; }
   } else a.lunge = { dx: Math.sign(t.x - a.x), dy: Math.sign(t.y - a.y), t: 0 };
   const [lo, hi] = dmgRange(a, t, ranged);
@@ -171,7 +171,7 @@ async function explode(x, y) {
   await sleep(380);
   for (const [dx, dy] of DIRS) if (isBarrel(x + dx, y + dy)) await explode(x + dx, y + dy); // цепная реакция
 }
-async function shootBarrel(s, x, y) { s.shots--; B.fx.push({ shot: true, fx0: s.x, fy0: s.y, x, y, t: 0 }); sfx('shoot'); await sleep(260); await explode(x, y); }
+async function shootBarrel(s, x, y) { s.shots--; s.atk = 1; B.fx.push({ shot: true, fx0: s.x, fy0: s.y, x, y, t: 0 }); sfx('shoot'); await sleep(260); await explode(x, y); }
 // экстрасенс заряжает своих: лечит самый побитый отряд и поднимает павших
 function healAlly(s) {
   const lost = e => e.n0 * UNITS[e.u].hp - pool(e);
