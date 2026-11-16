@@ -62,6 +62,9 @@ function aiTown(p, D) {
     const h = heroAt(t.x, t.y), own = h && h.owner === p.id ? h : null;
     for (const u of FACTIONS[t.fac].units.slice().reverse()) { const n = maxRecruit(t, u); if (n > 0) recruit(t, u, n, own); }
     if (p.res.gold > 2000) upgradeAll(t, own);
+    // заказы: бот берёт один, общак сдаёт, как только есть чем
+    if (jobsOf(p).length < 1 && (p.offers || []).length) { const o = p.offers.find(x => x.type !== 'hit') || p.offers[0]; jobTake(p, o.id); }
+    for (const j of jobsOf(p).slice()) if (j.type === 'tribute' && (p.res[j.res] || 0) >= j.amt + 2) jobTribute(p, j);
     if (own) aiPickup(own, t);
     if (!heroAt(t.x, t.y)) { const j = myJailed(p.id).sort((a, b) => b.hero.lvl - a.hero.lvl)[0]; if (j && p.res.gold >= ransomOf(j) + 2000) ransom(t, j); } // прокачанного героя выгоднее вернуть, чем нанимать нового
     if (!heroAt(t.x, t.y) && myHeroes(p.id).length < D.heroes && p.res.gold >= HERO_COST + 3000) hireHero(t);
@@ -128,6 +131,11 @@ function aiTargets(h, p, D) {
     const zid = zone[o.y * MW + o.x];
     if (o.t !== 'mob' && zid >= 0) { const m = mobById(zid); if (m) defs.unshift({ army: m.army }); }
     out.push({ x: o.x, y: o.y, w, defs, key: 'o' + o.id });
+  }
+  for (const j of jobsOf(p)) { // цели заказов — в приоритете
+    const sp = jobSpot(j); if (!sp) continue;
+    const o = G.objs.find(x => x.x === sp.x && x.y === sp.y);
+    out.push({ x: sp.x, y: sp.y, w: 10, defs: o && o.t === 'mob' ? [{ army: o.army }] : [], key: 'job' + j.id });
   }
   { const k = G.heroes.find(e => e.owner !== h.owner && e.arts.includes('key')); if (k && !peace) out.push({ x: k.x, y: k.y, w: 16, defs: [{ army: k.army, hero: k }], key: 'kh' + k.id }); } // ключ у чужих — отбирать любой ценой
   if (!peace) for (const e of G.heroes) if (e.owner !== h.owner && see(e.x, e.y) && !townAt(e.x, e.y)) out.push({ x: e.x, y: e.y, w: 7, defs: [{ army: e.army, hero: e }], key: 'h' + e.id });

@@ -132,7 +132,7 @@ function openExchange(a, b) {
 }
 
 // ---------- бой ----------
-function battleUI(on) { $('bui').hidden = !on; closeSpells(); if (on) refreshBattleUI(); }
+function battleUI(on) { $('bui').hidden = !on; closeSpells(); if (on) { $('toast').style.opacity = 0; refreshBattleUI(); } }
 const btnLbl = (icon, text, key) => `${ico(icon, 16)}<span class="lbl">${text}</span><kbd>${key}</kbd>`;
 function refreshBattleUI() {
   if (!B || B.quick) return;
@@ -142,7 +142,7 @@ function refreshBattleUI() {
   $('bLog').innerHTML = B.log.slice(0, 3).map(l => `<div>${l}</div>`).join('');
   // очередь ходов: кто ходит сейчас и следующие
   const col = st => (B.sides[st.side].owner >= 0 ? pcol(B.sides[st.side].owner) : '#777');
-  $('bQueue').innerHTML = [s, ...B.queue.filter(alive)].filter(Boolean).slice(0, 14).map((st, i) => `<span class="qi ${i ? '' : 'on'}" style="background:${col(st)}" title="${UNITS[st.u].name} ×${st.n}">${unitIcon(st.u, 32)}<b>${st.n}</b></span>`).join('');
+  $('bQueue').innerHTML = [s, ...B.queue.filter(alive)].filter(Boolean).slice(0, 14).map((st, i) => `<span class="qi ${i ? '' : 'on'}" style="background:${col(st)}" title="${st.hero ? `${UNITS[st.u].name}, герой: здоровье ${st.hp}` : `${UNITS[st.u].name} ×${st.n}`}">${unitIcon(st.u, 32)}<b>${st.hero ? st.hp : st.n}</b></span>`).join('');
   const human = s && !sd.auto && !(sd.remote && !B.mirror) && (!B.mirror || !!B.wait);
   ['bWait', 'bDef', 'bAuto'].forEach(id => { $(id).disabled = !human; });
   $('bCast').disabled = !(human && sd.hero && canCast(sd) && sd.hero.mana >= 4);

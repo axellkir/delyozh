@@ -19,10 +19,21 @@ for (const [w, h] of [[1440, 900], [1280, 760], [1920, 1080]]) {
     Object.assign(t.built, { dw2: true, adm1: true, gym: true, up1: true, market: true }); t.avail[FACTIONS[t.fac].units[1]] = 9;
     const h2 = makeHero(0, t.fac, hh.x + 1, hh.y); h2.army[0] = { u: 'gop', n: 5 }; G.heroes.push(h2);
     const jh = makeHero(0, t.fac, 0, 0); jh.lvl = 4; jail().push({ hero: jh, captor: 1, at: myTowns(1)[0].id, day: 1 });
+    p.offerWeek = weekNo(); p.offers = jobOffers(p); p.jobs = []; jobTake(p, p.offers[0].id); p.jobs[0].until = G.day + 2;
     selectHero(hh); refresh();
   });
   await new Promise(r => setTimeout(r, 500));
   await page.screenshot({ path: `${out}/map-${w}.png` });
+  // бой с героями на поле с обеих сторон
+  await page.evaluate(() => {
+    const hh = G.heroes[0], foe = myHeroes(1)[0] || G.heroes.find(x => x.owner === 1); hh.lvl = 5; foe.lvl = 3;
+    runBattle({ a: { army: hh.army.map(x => x && { ...x }), hero: hh, owner: 0 }, d: { army: [{ u: 'chop', n: 8 }, { u: 'buh', n: 4 }, { u: 'babka', n: 12 }, null, null], hero: foe, owner: 1 }, title: 'Красные против Жёлтые', arena: 'street' });
+  });
+  await new Promise(r => setTimeout(r, 1500));
+  await page.evaluate(() => { const st = B.stacks.find(s => s.hero && s.side === 1); const { cs, ox, oy } = battleGeom(); UI.bh = { cx: st.x, cy: st.y, fx: st.x + 0.5, fy: st.y + 0.5 }; document.getElementById('bInfo').innerHTML = hoverInfo(st.x, st.y); });
+  await page.screenshot({ path: `${out}/battle-${w}.png` });
+  await page.evaluate(() => { if (B) endBattle(0); document.querySelectorAll('.ov').forEach(e => { e.hidden = true; }); });
+  await new Promise(r => setTimeout(r, 300));
   await page.evaluate(() => { const t = myTowns(0)[0]; openTown(t, heroAt(t.x, t.y)); });
   await new Promise(r => setTimeout(r, 400));
   await page.screenshot({ path: `${out}/town-${w}.png` });

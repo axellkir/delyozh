@@ -67,6 +67,7 @@ function turnEffects(p) {
   }
   p.noTown = myTowns(p.id).length ? 0 : (p.noTown || 0) + 1;
   p.heat = Math.max(0, (p.heat || 0) - HEAT_COOL); // розыск понемногу остывает
+  jobsTick(p);
 }
 // В день одновременных ходов чужие бригады людей не трогаем: каждый считает свой день сам, и драка между ними рассинхронила бы партию
 const simPeace = owner => NET.on && !!G.sim && owner >= 0 && !isBot(owner);
@@ -184,7 +185,7 @@ async function moveHero(h, plan) {
     const st = plan.path[k], cost = st.c - prevC;
     if (h.mp + 0.01 < cost) { toast('Ход кончился. Продолжите завтра'); break; }
     h.mp = Math.max(0, h.mp - cost); prevC = st.c;
-    h.x = st.x; h.y = st.y; reveal(h.owner, h.x, h.y, 6);
+    h.x = st.x; h.y = st.y; reveal(h.owner, h.x, h.y, 6); jobStep(h);
     // чужого бота показываем только там, где зритель уже бывал, и камеру за ним не таскаем
     const bot = isBot(h.owner), vis = !bot || viewP().seen[h.y * MW + h.x];
     if (vis) sfx('step');
@@ -226,7 +227,7 @@ async function enterTile(h, last, action) {
   if (o.t === 'mine') {
     const M = mineOf(o), take = () => { // забрать точку себе
       if (o.owner >= 0) { notify(o.owner, `${p.name} отжали у вас точку: ${M.name}.${botLine(h.owner, 'mine')}`); addHeat(h.owner, HEAT.mine); }
-      o.owner = h.owner; reveal(h.owner, o.x, o.y, 3); sfx('flag'); mapFloat(o.x, o.y, 'наша точка!', pcol(h.owner));
+      o.owner = h.owner; reveal(h.owner, o.x, o.y, 3); sfx('flag'); mapFloat(o.x, o.y, 'наша точка!', pcol(h.owner)); jobEvent(h.owner, 'mine', o.id);
       toast(`${M.name} — теперь ваша точка: +${M.amt} ${RES_GEN[MINE[o.kind].res]} в день`); log(`${p.name} взяли точку: ${M.name}`);
     };
     const back = () => { if (o.roof) { for (const st of o.roof.army) if (st) addUnits(h.army, st.u, st.n); o.roof = null; } }; // смотрящие возвращаются в отряд
@@ -322,7 +323,7 @@ async function fightMob(h, mob) {
   const r = await runBattle({ a: { army: h.army, hero: h, owner: h.owner }, d: { army: mob.army, hero: null, owner: -1 }, title: 'Разборка с местными', arena: arenaAt(mob.x, mob.y, null, mob.boss) });
   const p = G.players[h.owner];
   if (r.winner === 0) {
-    h.army = r.aArmy; removeObj(mob); addHeat(h.owner, HEAT.mob);
+    h.army = r.aArmy; removeObj(mob); addHeat(h.owner, HEAT.mob); jobEvent(h.owner, 'mob', mob.id);
     const loot = (mob.lvl || 1) * rnd(3, 6) * 100; p.res.gold += loot;
     await ask('Победа!', `Местные разбежались. В карманах нашлось ${loot}${resIco('gold', 16)}.`, ['Дальше'], { pid: h.owner });
     await giveXp(h, xpFromKills(before, r.dArmy));
@@ -351,6 +352,8 @@ async function fightHero(h, o, inTown) {
   else if (win.owner !== G.cur) notify(win.owner, `${lose.name} (${G.players[lose.owner].name}) полез на вашего героя ${win.name} и не вывез.`);
   await heroDies(lose, `проиграл стрелку против ${win.name}`, win.owner);
   if (win === h) addHeat(h.owner, HEAT.hero); // наглеет тот, кто напал и победил
+  jobEvent(win.owner, 'beat', lose.owner);
+  { const side = win === h ? 0 : 1; if (r.down && r.down[side] && !isBot(win.owner)) toast(`${win.name} выбили в драке, но пацаны дожали. Отлежится.`, true); }
   await giveXp(win, xpFromKills(bL, r.winner === 0 ? r.dArmy : r.aArmy) + 500);
   return r.winner === 0;
 }
@@ -380,6 +383,7 @@ async function siege(h, t) {
     await giveXp(h, xpFromKills(before, r.dArmy));
   }
   const old = t.owner;
+  if (old >= 0) jobEvent(h.owner, 'town', old);
   addHeat(h.owner, old >= 0 ? HEAT.townOwned : HEAT.town);
   if (old >= 0) notify(old, `${p.name} взяли ваш город ${t.name}.${botLine(h.owner, 'town')}`);
   t.owner = h.owner; t.garrison = [null, null, null, null, null];
@@ -418,6 +422,92 @@ async function weekDeal(p, id) {
   const o = opts[c] || opts[opts.length - 1], res = await o[2](p);
   if (!bot && res) await ask(d.title, res, ['Ясно'], { pid: p.id });
   refresh();
+}
+
+// ---------- заказы авторитетов ----------
+const jobsOf = p => p.jobs || (p.jobs = []);
+const objById = id => G.objs.find(o => o.id === id) || null;
+const placeName = o => (!o ? 'неизвестно где' : o.t === 'town' ? o.name : o.t === 'mine' ? mineOf(o).name : o.t === 'bonus' ? bonusOf(o).name : o.nm || 'точка');
+function rewardText(r) { return RES.filter(k => r[k]).map(k => `${r[k]} ${RES_GEN[k]}`).join(' + ') || 'уважение'; }
+// что заказали — одной строкой, и подробнее
+function jobTitle(j) {
+  const o = objById(j.target);
+  if (j.type === 'clear') return `Разогнать: ${o ? UNITS[o.army.find(Boolean).u].name.toLowerCase() : 'шпану'}`;
+  if (j.type === 'grab') return `Отжать точку: ${placeName(o)}`;
+  if (j.type === 'deliver') return `Груз: ${placeName(objById(j.from))} → ${placeName(objById(j.to))}`;
+  if (j.type === 'hit') return `Наказать бригаду «${G.players[j.foe].name}»`;
+  return `Скинуться на общак: ${j.amt} ${RES_GEN[j.res]}`;
+}
+function jobText(j) {
+  if (j.type === 'clear') return 'Местные мешают делам. Разогнать — и всё.';
+  if (j.type === 'grab') return 'Точка должна платить правильным людям. Отжать её.';
+  if (j.type === 'deliver') return j.stage ? 'Груз у вашего героя — довезти до места. Разобьют героя — груз вернётся на склад.' : 'Забрать груз (подойти к месту любым героем) и довезти.';
+  if (j.type === 'hit') return 'Разбить их героя или взять их город.';
+  return 'Сдать в любой момент кнопкой ниже. Авторитет замолвит словечко — розыск упадёт.';
+}
+// где цель заказа на карте
+function jobSpot(j) { const o = objById(j.type === 'deliver' ? (j.stage ? j.to : j.from) : j.target); return o ? { x: o.x, y: o.y } : null; }
+// три предложения на неделю; цели — в разумной дали от своего города
+function jobOffers(p) {
+  const home = myTowns(p.id)[0] || myHeroes(p.id)[0]; if (!home) return [];
+  const w = weekNo(), k = 1 + 0.15 * (w - 1), d = o => Math.hypot(o.x - home.x, o.y - home.y), busy = new Set(jobsOf(p).map(j => j.target));
+  const R = n => Math.round(n * k / 50) * 50, all = [];
+  const mobs = G.objs.filter(o => o.t === 'mob' && !o.boss && d(o) > 4 && d(o) < 26 && !busy.has(o.id));
+  if (mobs.length) { const m = pick(mobs); all.push({ type: 'clear', target: m.id, reward: { gold: R(700 * (m.lvl || 1)) } }); }
+  const mines = G.objs.filter(o => o.t === 'mine' && o.owner !== p.id && d(o) < 28 && !busy.has(o.id) && !simPeace(o.owner));
+  if (mines.length) { const m = pick(mines), r = pick(['fuel', 'brick']); all.push({ type: 'grab', target: m.id, reward: { gold: R(1200), [r]: 3 } }); }
+  const spots = G.objs.filter(o => o.t === 'mine' || o.t === 'bonus' || o.t === 'town'), A = pick(spots.filter(o => d(o) >= 4 && d(o) < 16) || []);
+  const Bs = A ? spots.filter(o => o !== A && Math.hypot(o.x - A.x, o.y - A.y) >= 10 && Math.hypot(o.x - A.x, o.y - A.y) < 24) : [];
+  if (A && Bs.length) { const Bo = pick(Bs); all.push({ type: 'deliver', from: A.id, to: Bo.id, target: A.id, stage: 0, carrier: 0, reward: { gold: R(1300), fuel: 3 } }); }
+  const foes = G.players.filter(x => x.alive && x.id !== p.id);
+  if (foes.length && w >= 2) { const f = pick(foes); all.push({ type: 'hit', foe: f.id, reward: { gold: R(2500) }, days: 10 }); }
+  { const r = pick(['fuel', 'brick']); all.push({ type: 'tribute', res: r, amt: 4 + w, reward: { gold: R(600) }, heat: 25 }); }
+  return all.sort(() => Math.random() - 0.5).slice(0, 3).map((j, i) => ({ ...j, id: `${G.day}-${p.id}-${i}`, boss: pick(BOSSES), days: j.days || JOB_DAYS }));
+}
+function jobTake(p, id) {
+  const i = (p.offers || []).findIndex(o => o.id === id); if (i < 0) return 'Предложение уже ушло';
+  if (jobsOf(p).length >= JOB_MAX) return `Больше ${JOB_MAX} заказов разом не взять`;
+  const j = p.offers.splice(i, 1)[0]; j.until = G.day + j.days; jobsOf(p).push(j);
+  return true;
+}
+function jobDone(p, j) {
+  p.jobs = jobsOf(p).filter(x => x !== j);
+  RES.forEach(r => { p.res[r] += j.reward[r] || 0; });
+  if (j.heat) addHeat(p.id, -j.heat);
+  p.jobsDone = (p.jobsDone || 0) + 1;
+  const msg = `${j.boss} доволен: «${jobTitle(j)}» — сделано. Награда: ${rewardText(j.reward)}${j.heat ? ', розыск −' + j.heat : ''}.`;
+  if (p.id === G.cur && !isBot(p.id) && !netRemote(p.id)) { toast(msg, true); sfx('coin'); } else notify(p.id, msg);
+  log(`${p.name} выполнили заказ: ${jobTitle(j)}`);
+}
+// что-то случилось — проверить, не закрыт ли этим чей-то заказ. kind: mob / mine / beat / town
+function jobEvent(pid, kind, id) {
+  const p = G.players[pid]; if (!p || !p.jobs) return;
+  for (const j of p.jobs.slice()) {
+    if ((j.type === 'clear' && kind === 'mob' && j.target === id) || (j.type === 'grab' && kind === 'mine' && j.target === id) || (j.type === 'hit' && (kind === 'beat' || kind === 'town') && j.foe === id)) jobDone(p, j);
+  }
+}
+// герой сделал шаг: подобрать груз или довезти его
+function jobStep(h) {
+  const p = G.players[h.owner]; if (!p || !p.jobs) return;
+  for (const j of p.jobs.slice()) {
+    if (j.type !== 'deliver') continue;
+    const o = objById(j.stage ? j.to : j.from); if (!o || Math.max(Math.abs(o.x - h.x), Math.abs(o.y - h.y)) > 1) continue;
+    if (!j.stage) { j.stage = 1; j.carrier = h.id; if (!isBot(h.owner)) { toast(`${h.name} забрал груз. Везём: ${placeName(objById(j.to))}`, true); mapFloat(h.x, h.y, 'груз взят', '#ffd21a'); } }
+    else if (j.carrier === h.id) jobDone(p, j);
+  }
+}
+// в начале дня: просроченные заказы и новые предложения по понедельникам
+function jobsTick(p) {
+  for (const j of jobsOf(p).slice()) {
+    const gone = (j.type === 'clear' || j.type === 'grab') && !objById(j.target) || (j.type === 'hit' && !G.players[j.foe].alive);
+    if (gone) { p.jobs = p.jobs.filter(x => x !== j); notify(p.id, `Заказ «${jobTitle(j)}» сорвался: опередили.`); continue; }
+    if (G.day > j.until) { p.jobs = p.jobs.filter(x => x !== j); addHeat(p.id, JOB_FAIL_HEAT); notify(p.id, `${j.boss} недоволен: заказ «${jobTitle(j)}» просрочен. Слух прошёл по району — розыск +${JOB_FAIL_HEAT}.`); }
+  }
+  if (p.offerWeek !== weekNo()) { p.offerWeek = weekNo(); p.offers = jobOffers(p); if (p.offers.length) notify(p.id, `Авторитеты предлагают заказы: ${p.offers.length}. Смотрите в панели справа.`); }
+}
+function jobTribute(p, j) {
+  if ((p.res[j.res] || 0) < j.amt) return `Нужно ${j.amt} ${RES_GEN[j.res]}`;
+  p.res[j.res] -= j.amt; jobDone(p, j); return true;
 }
 
 // ---------- Ключ от Кремля ----------
@@ -493,6 +583,7 @@ async function heroDies(h, why, captor = -1) {
   G.heroes = G.heroes.filter(x => x !== h);
   log(`${h.name} (${G.players[h.owner].name}) ${why}`);
   if (UI.sel === h.id) UI.sel = null;
+  for (const j of jobsOf(G.players[h.owner])) if (j.type === 'deliver' && j.carrier === h.id) { j.stage = 0; j.carrier = 0; notify(h.owner, `Груз по заказу «${jobTitle(j)}» потерян вместе с героем — он снова на складе.`); }
   if (h.arts.includes('key') && !(captor >= 0 && G.heroes.some(x => x.owner === captor && x.arts.includes('key')))) { h.arts = h.arts.filter(a => a !== 'key'); keyHome(); }
   const town = captor >= 0 && captor !== h.owner ? jailTown(captor, h.x, h.y) : null;
   const j = { hero: { ...h, army: [null, null, null, null, null], arts: [], dest: null, mp: 0 }, captor: town ? captor : -1, at: town ? town.id : 0, day: G.day };
