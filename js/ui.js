@@ -155,7 +155,7 @@ function drawMap() {
     const X = P.x * TS + TS / 2, Y = P.y * TS + TS / 2 - (walking ? Math.abs(Math.sin(now / 75)) * 5 : 0), inTown = !walking && !!townAt(o.x, o.y), dx = inTown ? 14 : 0, dy = inTown ? 12 : 0;
     if (o.id === UI.sel) { c.strokeStyle = '#ffd21a'; c.lineWidth = 3; c.beginPath(); c.arc(X + dx, Y + dy, 21 + Math.sin(now / 180) * 2, 0, 7); c.stroke(); }
     c.fillStyle = pcol(o.owner); c.beginPath(); c.arc(X + dx, Y + dy, 17, 0, 7); c.fill(); c.strokeStyle = '#000'; c.lineWidth = 2; c.stroke();
-    drawSprite(c, 'h_' + o.name, X + dx, Y + dy - 1, 32, walking ? now / 110 : o.id);
+    drawSprite(c, 'h_' + o.name, X + dx, Y + dy - 1, 32, walking ? now / 110 : o.id, walking ? 'walk' : null);
   }
   // всплывающие подписи: что подобрали, что захватили
   c.font = 'bold 16px "Trebuchet MS", sans-serif';
@@ -236,7 +236,8 @@ function drawBattle() {
     if (st === s) { c.strokeStyle = '#ffd21a'; c.lineWidth = 4; c.beginPath(); c.arc(X, Y, cs * 0.44 + Math.sin(now / 150) * 2, 0, 7); c.stroke(); }
     c.fillStyle = own >= 0 ? pcol(own) : '#8a8a8a'; c.globalAlpha = 0.55; c.beginPath(); c.arc(X, Y, cs * 0.4, 0, 7); c.fill(); c.globalAlpha = 1;
     c.save(); c.translate(X, Y); if (st.side === 1) c.scale(-1, 1); if (tilt) c.rotate(tilt);
-    drawSprite(c, st.u, 0, -cs * 0.04, Math.floor(cs * 0.8 / 16) * 16 || 16, walking ? now / 110 : st.id); c.restore();
+    if (st.atk > 0) st.atk -= 0.05;
+    drawSprite(c, st.u, 0, -cs * 0.04, Math.floor(cs * 0.8 / 16) * 16 || 16, walking ? now / 110 : st.id, st.lunge || st.atk > 0 ? 'atk' : walking ? 'walk' : null); c.restore();
     if (st.flash > 0) { c.fillStyle = `rgba(255,40,40,${st.flash * 0.5})`; c.beginPath(); c.arc(X, Y, cs * 0.4, 0, 7); c.fill(); st.flash = Math.max(0, st.flash - 0.05); }
     if (st.defd) drawSprite(c, 'i_def', X - cs * 0.32, Y - cs * 0.3, 16, 0);
     const label = String(st.n); c.font = `bold ${Math.round(cs * 0.22)}px sans-serif`;

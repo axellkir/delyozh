@@ -51,6 +51,16 @@ await page.evaluate(() => {
   document.body.appendChild(o);
 });
 await page.screenshot({ path: path.join(out, 'sprites.png'), clip: { x: 0, y: 0, width: 1368, height: 480 } });
+// кадры движения: покой, шаг врозь, шаг вместе, удар — у каждого бойца и героя
+await page.evaluate(() => {
+  document.getElementById('sheet').remove();
+  const ids = Object.keys(SPRITES).filter(id => SPRITES[id].walk), sc = 4, w = 16 * sc, cols = 8, o = document.createElement('canvas'); o.id = 'sheet';
+  o.width = cols * (w * 4 + 14); o.height = Math.ceil(ids.length / cols) * (w + 16); o.style.cssText = 'position:fixed;left:0;top:0;z-index:1000;background:#3a3340';
+  const x = o.getContext('2d'); x.imageSmoothingEnabled = false; x.font = '9px sans-serif';
+  ids.forEach((id, i) => { const X = (i % cols) * (w * 4 + 14) + 4, Y = Math.floor(i / cols) * (w + 16) + 2, S = SPRITES[id]; x.fillStyle = '#6d6a5c'; x.fillRect(X - 2, Y, w * 4 + 4, w + 2); [S.frames[0], S.walk[0], S.walk[1], S.atk[0]].forEach((f, k) => x.drawImage(f, X + k * w, Y, w, w)); x.fillStyle = '#fff'; x.fillText(id.slice(0, 22), X, Y + w + 11); });
+  document.body.appendChild(o);
+});
+await page.screenshot({ path: path.join(out, 'frames.png'), clip: { x: 0, y: 0, width: 1440, height: 340 } });
 await page.evaluate(() => document.getElementById('sheet').remove());
 await page.screenshot({ path: path.join(out, 'whole.png'), clip: { x: 0, y: 0, width: 1400, height: 900 } });
 await page.setViewport({ width: 1400, height: 1400 });
