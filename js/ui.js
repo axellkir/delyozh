@@ -326,29 +326,29 @@ const anyOverlay = () => ['modal', 'town', 'exch', 'curtain', 'menu'].some(id =>
 function refresh() {
   if (!G) return;
   const watch = BOTTING || netWatching(), p = watch ? viewP() : curP(), inc = dailyIncome(p.id);
-  $('pName').innerHTML = `${ico('t_' + p.fac, 28)} ${esc(p.name)}`; $('pName').style.color = p.col;
+  $('pName').innerHTML = `${ico('t_' + p.fac, 24)} <span>${esc(p.name)}</span>`; $('pName').style.color = p.col;
   $('pDay').innerHTML = NET.on && G.sim && !BOTTING ? (watch ? `<b>${ico('i_wait', 16)} День сдан. Ждём остальных…</b>` : `<b>${ico('i_net', 16)} Общий день: все ходят сразу</b> · неделя ${weekNo()}, день ${dayOfWeek()}`)
     : watch ? `<b style="color:${curP().col}">${ico(isBot(G.cur) ? 'i_bot' : 'i_net', 16)} Ходит: ${esc(curP().name)}…</b>` : `Неделя ${weekNo()}, день ${dayOfWeek()} · всего дней: ${G.day}`;
-  { const k = keyState(); if (k) $('pDay').innerHTML += `<br><span style="color:${pcol(k.owner)}">${ico('a_key', 14)} Ключ от Кремля у «${esc(G.players[k.owner].name)}»: ещё ${Math.max(0, k.left)} дн.</span>`; }
   { const k = keyState(); if (k) $('pDay').innerHTML += `<br><span style="color:${pcol(k.owner)}">${ico('a_key', 14)} Ключ от Кремля у «${esc(G.players[k.owner].name)}»: ещё ${Math.max(0, k.left)} дн.</span>`; }
   $('endBtn').disabled = watch;
   netBox(); netDirty();
   const st = heatStars(p);
-  $('pRes').innerHTML = RES.map(r => `<div>${resIco(r, 22)} ${p.res[r]}<small>+${inc[r]}/день</small></div>`).join('') + `<div title="Розыск: ${p.heat || 0} из 100. Копится за драки, захваты и крыши, сам остывает. С ${HEAT_RAID} в понедельник приезжает ОМОН. Откупиться — в городе с Управой или на Петровке.">${st ? ico('i_star', 16).repeat(st) : '—'}<small style="color:${(p.heat || 0) >= HEAT_RAID ? '#ff6b6b' : (p.heat || 0) >= HEAT_WARN ? '#ffd21a' : '#b9a9c4'}">розыск ${p.heat || 0}</small></div>`;
-  $('heroList').innerHTML = myHeroes(p.id).map(h => `<div class="li ${h.id === UI.sel ? 'on' : ''}" data-h="${h.id}"><span class="em">${heroIco(h, 32)}</span><span>${h.name}<br><small>ур. ${h.lvl}</small></span><span class="mpb"><i style="width:${Math.round(100 * h.mp / heroMaxMp(h))}%"></i></span></div>`).join('') + myJailed(p.id).map(j => `<div class="li" style="opacity:.55;cursor:default"><span class="em">${heroIco(j.hero, 32)}</span><span>${j.hero.name}<br><small>${jailPlace(j)}</small></span></div>`).join('') || '<small>Героев нет — наймите в городе</small>';
-  $('townList').innerHTML = myTowns(p.id).map(t => `<div class="li" data-t="${t.id}"><span class="em">${ico('t_' + t.fac, 32)}</span><span>${t.name}<br><small>${t.builtDay === G.day ? 'сегодня уже строили' : 'можно строить'}</small></span></div>`).join('') || '<small>Городов нет! Захватите любой за 7 дней</small>';
+  $('pRes').innerHTML = RES.map(r => `<div><span>${resIco(r, 18)} ${p.res[r]}</span><small>+${inc[r]}</small></div>`).join('') + `<div title="Розыск: ${p.heat || 0} из 100. Копится за драки, захваты и крыши, сам остывает. С ${HEAT_RAID} в понедельник приезжает ОМОН. Откупиться — в городе с Управой или на Петровке."><span>${st ? ico('i_star', 14).repeat(st) : ico('police', 16)}</span><small style="color:${(p.heat || 0) >= HEAT_RAID ? '#ff6b6b' : (p.heat || 0) >= HEAT_WARN ? '#ffd21a' : '#b9a9c4'}">розыск ${p.heat || 0}</small></div>`;
+  $('heroList').innerHTML = myHeroes(p.id).map(h => `<div class="li ${h.id === UI.sel ? 'on' : ''}" data-h="${h.id}"><span class="em">${heroIco(h, 30)}</span><span>${h.name}<br><small>ур. ${h.lvl} · ход ${Math.floor(h.mp)}</small></span><span class="mpb"><i style="width:${Math.round(100 * h.mp / heroMaxMp(h))}%"></i></span></div>`).join('') + myJailed(p.id).map(j => `<div class="li" style="opacity:.55;cursor:default"><span class="em">${heroIco(j.hero, 30)}</span><span>${j.hero.name}<br><small>${jailPlace(j)}</small></span></div>`).join('') || '<small>Героев нет — наймите в городе</small>';
+  $('townList').innerHTML = myTowns(p.id).map(t => `<div class="li" data-t="${t.id}"><span class="em">${ico('t_' + t.fac, 30)}</span><span>${t.name}<br><small>${t.builtDay === G.day ? 'сегодня уже строили' : 'можно строить'}</small></span></div>`).join('') || '<small>Городов нет! Захватите любой за 7 дней</small>';
   document.querySelectorAll('[data-h]').forEach(el => el.onclick = () => { if (!locked()) selectHero(heroById(+el.dataset.h)); });
   document.querySelectorAll('[data-t]').forEach(el => el.onclick = () => { if (!locked()) { const t = G.objs.find(o => o.id === +el.dataset.t); openTown(t, heroAt(t.x, t.y)); } });
   const h = selHero();
   if (h) {
     const s = heroStats(h), nx = xpFor(h.lvl + 1), px = xpFor(h.lvl);
-    $('hCard').innerHTML = `<div style="display:flex;gap:10px;align-items:center"><span style="font-size:42px">${heroIco(h, 56)}</span><div><b style="font-size:17px">${h.name}</b><br><small>${FACTIONS[h.fac].name} · уровень ${h.lvl}${SPECS[h.spec] ? `<br>${ico('i_star', 12)} ${SPECS[h.spec].name}: ${SPECS[h.spec].desc}` : ''}</small></div></div>
-      <div class="stats"><div>${ico('i_att', 18)}${s.att}<small>атака</small></div><div>${ico('i_def', 18)}${s.def}<small>защита</small></div><div>${ico('i_pow', 18)}${s.pow}<small>понты</small></div><div>${ico('i_mana', 18)}${h.mana}<small>из ${maxMana(h)}</small></div></div>
-      <small>Ход: ${Math.floor(h.mp)} / ${heroMaxMp(h)}</small><div class="bar"><i style="width:${100 * h.mp / heroMaxMp(h)}%;background:#6f6"></i></div>
-      <small>Опыт: ${h.xp} / ${nx}</small><div class="bar"><i style="width:${100 * (h.xp - px) / (nx - px)}%;background:#fc3"></i></div>
-      <div class="slots">${h.army.map(a => `<div class="slot" title="${a ? UNITS[a.u].name : ''}">${a ? unitIcon(a.u, 40) + `<b>${a.n}</b>` : ''}</div>`).join('')}</div>
-      <div class="arts">${h.arts.map(a => `<span title="${ARTS[a].name}: ${ARTS[a].desc}">${ico('a_' + a, 32)}</span>`).join('') || '<small>Артефактов нет</small>'}</div>
-      ${G.heroes.filter(o => o.owner === h.owner && o !== h && Math.max(Math.abs(o.x - h.x), Math.abs(o.y - h.y)) <= 1).map(o => `<button class="sec" data-ex="${o.id}" style="margin-top:6px">${ico('i_meet', 16)} Обмен с ${o.name}</button>`).join('')}`;
+    const near = G.heroes.filter(o => o.owner === h.owner && o !== h && Math.max(Math.abs(o.x - h.x), Math.abs(o.y - h.y)) <= 1);
+    $('hCard').innerHTML = `<div class="hc-head">${heroIco(h, 48)}<div><b>${h.name}</b><small>${FACTIONS[h.fac].name} · уровень ${h.lvl}</small>${SPECS[h.spec] ? `<small>${ico('i_star', 11)} ${SPECS[h.spec].name}: ${SPECS[h.spec].desc}</small>` : ''}</div></div>
+      <div class="stats"><div>${ico('i_att', 16)}${s.att}<small>атака</small></div><div>${ico('i_def', 16)}${s.def}<small>защита</small></div><div>${ico('i_pow', 16)}${s.pow}<small>понты</small></div><div>${ico('i_mana', 16)}${h.mana}<small>из ${maxMana(h)}</small></div></div>
+      <div class="meter"><span>Ход</span><span>${Math.floor(h.mp)} / ${heroMaxMp(h)}</span></div><div class="bar"><i style="width:${100 * h.mp / heroMaxMp(h)}%;background:#6f6"></i></div>
+      <div class="meter"><span>Опыт</span><span>${h.xp} / ${nx}</span></div><div class="bar"><i style="width:${100 * (h.xp - px) / (nx - px)}%;background:#fc3"></i></div>
+      <div class="slots sm">${h.army.map(a => `<div class="slot" title="${a ? `${UNITS[a.u].name} ×${a.n}` : 'пусто'}">${a ? unitIcon(a.u, 32) + `<b>${a.n}</b>` : ''}</div>`).join('')}</div>
+      <div class="arts">${h.arts.map(a => `<span title="${ARTS[a].name}: ${ARTS[a].desc}">${ico('a_' + a, 24)}</span>`).join('') || '<small>Артефактов нет</small>'}</div>
+      ${near.length ? `<div class="btns" style="margin-top:6px">${near.map(o => `<button class="sec sm" data-ex="${o.id}">${ico('i_meet', 14)} Обмен с ${o.name}</button>`).join('')}</div>` : ''}`;
     document.querySelectorAll('[data-ex]').forEach(el => el.onclick = () => { if (!locked()) openExchange(h, heroById(+el.dataset.ex)); });
   } else $('hCard').innerHTML = '<small>Выберите героя</small>';
   $('goBtn').disabled = watch || !h || (!h.dest && !UI.plan);
@@ -359,9 +359,9 @@ $('goBtn').onclick = () => continuePath();
 // ---------- миникарта ----------
 const mini = $('mini'), mc = mini.getContext('2d');
 function drawMini() {
-  const k = mini.width / MW, p = viewP();
+  const k = mini.width / MW, p = viewP(); // неразведанное рисуем тёмным силуэтом города, чтобы было видно, где ещё не были
   mc.fillStyle = '#000'; mc.fillRect(0, 0, mini.width, mini.height);
-  for (let y = 0; y < MH; y++) for (let x = 0; x < MW; x++) { if (!p.seen[y * MW + x]) continue; mc.fillStyle = ['#7b7464', '#55555e', '#3f7a36', '#2f6fb0', '#9a9a92', '#a52a2a', '#1e4524'][tileAt(x, y)]; mc.fillRect(x * k, y * k, k, k); }
+  for (let y = 0; y < MH; y++) for (let x = 0; x < MW; x++) { if (!p.seen[y * MW + x]) { if (tileAt(x, y) !== T.FOREST) { mc.fillStyle = '#211a27'; mc.fillRect(x * k, y * k, k, k); } continue; } mc.fillStyle = ['#7b7464', '#55555e', '#3f7a36', '#2f6fb0', '#9a9a92', '#a52a2a', '#1e4524'][tileAt(x, y)]; mc.fillRect(x * k, y * k, k, k); }
   for (const o of G.objs) if ((o.t === 'town' || o.t === 'mine') && p.seen[o.y * MW + o.x]) { mc.fillStyle = o.owner >= 0 ? pcol(o.owner) : '#fff'; const s = o.t === 'town' ? 3 : 2; mc.fillRect(o.x * k - s, o.y * k - s, k + s * 2, k + s * 2); }
   for (const h of G.heroes) if (p.seen[h.y * MW + h.x]) { mc.fillStyle = pcol(h.owner); mc.beginPath(); mc.arc(h.x * k + k / 2, h.y * k + k / 2, 3, 0, 7); mc.fill(); mc.strokeStyle = '#000'; mc.stroke(); }
   mc.strokeStyle = '#fff'; mc.lineWidth = 1; mc.strokeRect(UI.cam.x / TS * k, UI.cam.y / TS * k, VW / TS * k, VH / TS * k);
