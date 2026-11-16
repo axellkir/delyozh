@@ -57,6 +57,7 @@ function sprHuman(o, pose) {
   if (o.camo) { U(5, 7, 2, 1, o.camo); U(8, 8, 2, 1, o.camo); U(6, 9, 2, 1, o.camo); }
   if (o.chain) { U(6, 6, 1, 1, '#ffd21a'); U(7, 7, 2, 1, '#ffd21a'); U(9, 6, 1, 1, '#ffd21a'); }
   if (o.badge) U(9, 7, 1, 1, o.badge);
+  if (o.vet) { U(5 - w, 6, 1, 1, '#ffd21a'); U(10 + w, 6, 1, 1, '#ffd21a'); U(7, 10, 2, 1, '#ffd21a'); } // улучшенный боец: золотые погоны и пряжка
   // голова
   U(6, 2, 4, 4, skin);
   U(7, 4, 1, 1, SPR_INK); U(9, 4, 1, 1, SPR_INK);
@@ -162,6 +163,9 @@ const SPR_HUMANS = {
   omon: { hat: 'helmet', hatCol: '#15171c', top: '#3f5063', camo: '#2a3642', pants: '#3f5063', item: 'shield', shoe: '#0e0e12' },
 };
 
+// улучшенные бойцы: те же, но с золотом; у техники и зверей — золотая звезда
+for (const id of Object.keys(SPR_HUMANS)) if (UNITS[id + '2']) SPR_HUMANS[id + '2'] = { ...SPR_HUMANS[id], vet: true };
+for (const id of Object.keys(SPR_CUSTOM)) if (UNITS[id + '2']) SPR_CUSTOM[id + '2'] = (g, b, pose) => { SPR_CUSTOM[id](g, b, pose); sprRect(g, 1, 1, 3, 1, '#ffd21a'); sprRect(g, 2, 0, 1, 3, '#ffd21a'); };
 function buildSprites() {
   const put = (id, make) => {
     const cv = pose => sprCanvas(sprOutline(make(pose))), frames = [cv(0), cv(1)];

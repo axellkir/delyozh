@@ -24,11 +24,15 @@ const townAt = (x, y) => { const o = objAt(x, y); return o && o.t === 'town' ? o
 
 function heroStats(h) {
   const sp = SPECS[h.spec] || {};
-  const s = { att: h.att + (sp.att || 0), def: h.def + (sp.def || 0), pow: h.pow + (sp.pow || 0), spd: sp.spd || 0, gold: sp.gold || 0 };
+  const pk = h.perks || {};
+  const s = { att: h.att + (sp.att || 0), def: h.def + (sp.def || 0), pow: h.pow + (sp.pow || 0), spd: sp.spd || 0, gold: (sp.gold || 0) + 150 * (pk.gold || 0), luck: 0.04 * (pk.luck || 0), lead: !!pk.lead };
   for (const a of h.arts) { const A = ARTS[a]; s.att += A.att || 0; s.def += A.def || 0; s.pow += A.pow || 0; s.spd += A.spd || 0; s.gold += A.gold || 0; }
   return s;
 }
-const maxMana = h => 10 + 5 * heroStats(h).pow;
+const maxMana = h => 10 + 5 * heroStats(h).pow + 5 * ((h.perks || {}).mana || 0);
+// какой боец нанимается в городе на уровне i (0–4): улучшенный, если построено улучшение
+const townUnit = (t, i) => FACTIONS[t.fac].units[i] + (t.built['up' + (i + 1)] ? '2' : '');
+const townVar = (t, u) => townUnit(t, FACTIONS[t.fac].units.indexOf(u));
 const armyCount = a => a.reduce((s, x) => s + (x ? x.n : 0), 0);
 const armyValue = a => a.reduce((s, x) => s + (x ? x.n * UNITS[x.u].hp * (1 + UNITS[x.u].att / 10) : 0), 0);
 function costText(c) { return RES.filter(r => c[r]).map(r => `${c[r]}${resIco(r, 16)}`).join(' ') || 'бесплатно'; } // HTML: со значками ресурсов
@@ -54,6 +58,7 @@ function turnEffects(p) {
   for (const h of myHeroes(p.id)) {
     h.mp = heroMaxMp(h);
     h.mana = Math.min(maxMana(h), h.mana + (townAt(h.x, h.y) ? 99 : 5));
+    const t = townAt(h.x, h.y); if (t) townPerks(h, t, true);
   }
   p.noTown = myTowns(p.id).length ? 0 : (p.noTown || 0) + 1;
 }
@@ -126,6 +131,13 @@ function newWeek() {
     });
   }
   for (const o of G.objs) if (o.t === 'bonus' && o.kind === 'mp') o.seen = [];
+  // общак: проценты с казны; местные и ничьи гарнизоны подтягивают своих
+  for (const p of G.players) if (p.alive && myTowns(p.id).some(t => t.built.bank)) p.res.gold += Math.min(2000, Math.floor(p.res.gold * 0.05));
+  const grow = GAME_DIFF[G.diff == null ? 1 : G.diff].grow;
+  for (const o of G.objs) {
+    const army = o.t === 'mob' && !o.boss ? o.army : o.t === 'town' && o.owner < 0 ? o.garrison : null;
+    if (army) army.forEach(s => { if (s) s.n = Math.max(s.n + 1, Math.round(s.n * (1 + grow))); });
+  }
   if (ev.fx) ev.fx(G);
 }
 
@@ -203,7 +215,7 @@ async function enterTile(h, last, action) {
     return false;
   }
   if (o.t === 'town') {
-    if (o.owner === h.owner) { if (last && !isBot(h.owner)) { BUSY = false; await openTown(o, h); BUSY = true; } return false; }
+    if (o.owner === h.owner) { townPerks(h, o, false); if (last && !isBot(h.owner)) { BUSY = false; await openTown(o, h); BUSY = true; } return false; }
     await siege(h, o); return true;
   }
   if (o.t === 'chest') {
@@ -331,8 +343,12 @@ async function giveXp(h, xp) {
   h.xp += Math.round(xp * ((SPECS[h.spec] || {}).xp || 1));
   while (h.xp >= xpFor(h.lvl + 1)) {
     h.lvl++; sfx('level');
-    const c = await ask(`${ico('i_star', 24)} ${h.name}: уровень ${h.lvl}!`, 'Авторитет растёт. Что прокачать?', [`${ico('i_att', 16)} Атака +1`, `${ico('i_def', 16)} Защита +1`, `${ico('i_pow', 16)} Понты +1`], { pid: h.owner });
-    if (c === 0) h.att++; else if (c === 1) h.def++; else h.pow++;
+    // три навыка на выбор: один боевой обязательно, остальные случайные; «кураж» берётся один раз
+    const pk = h.perks || (h.perks = {}), pool = Object.keys(PERKS).filter(k => !(k === 'lead' && pk.lead)).sort(() => Math.random() - 0.5);
+    const first = pool.find(k => k === 'att' || k === 'def' || k === 'pow'), opts = [first, ...pool.filter(k => k !== first).slice(0, 2)];
+    const c = await ask(`${heroIco(h, 28)} ${h.name}: уровень ${h.lvl}!`, 'Авторитет растёт. Чему учимся?', opts.map(k => `${ico(PERKS[k].ic, 16)} ${PERKS[k].name}`), { pid: h.owner });
+    const k = opts[c] || opts[0];
+    if (k === 'att' || k === 'def' || k === 'pow') h[k]++; else pk[k] = (pk[k] || 0) + 1;
     h.mana = maxMana(h);
   }
 }
@@ -359,7 +375,7 @@ function checkWin() {
 // ---------- город ----------
 function buildState(t, b) {
   if (t.built[b.id]) return 'built';
-  if (b.req && !t.built[b.req]) return 'req';
+  if ([].concat(b.req || []).some(r => !t.built[r])) return 'req';
   if (t.builtDay === G.day) return 'today';
   if (!canPay(t.owner, b.cost)) return 'money';
   return 'ok';
@@ -371,17 +387,47 @@ function build(t, id) {
   if (b.tier) { const u = FACTIONS[t.fac].units[b.tier - 1]; t.avail[u] = (t.avail[u] || 0) + UNITS[u].grow; }
   sfx('build'); log(`${G.players[t.owner].name}: построили «${b.name}»`); return true;
 }
+// u — обычный боец бригады; наймётся он или его улучшенная версия, зависит от построек
 function maxRecruit(t, u) {
-  const c = UNITS[u].cost, r = G.players[t.owner].res;
+  const c = UNITS[townVar(t, u)].cost, r = G.players[t.owner].res;
   let n = t.avail[u] || 0;
   for (const k of RES) if (c[k]) n = Math.min(n, Math.floor(r[k] / c[k]));
   return Math.max(0, n);
 }
 function recruit(t, u, n, hero) {
   n = Math.min(n, maxRecruit(t, u)); if (n <= 0) return false;
-  const target = addUnits(t.garrison, u, 0) ? t.garrison : hero && addUnits(hero.army, u, 0) ? hero.army : null;
+  const v = townVar(t, u);
+  const target = addUnits(t.garrison, v, 0) ? t.garrison : hero && addUnits(hero.army, v, 0) ? hero.army : null;
   if (!target) { toast('Некуда ставить: все пять мест заняты'); return false; }
-  addUnits(target, u, n); pay(t.owner, UNITS[u].cost, n); t.avail[u] -= n; sfx('coin'); return true;
+  addUnits(target, v, n); pay(t.owner, UNITS[v].cost, n); t.avail[u] -= n; sfx('coin'); return true;
+}
+// Переобуть отряд: обычных бойцов этой бригады заменить улучшенными за разницу в цене
+function upgradeCost(t, s) {
+  if (!s || UNITS[s.u].base) return 0;
+  const i = FACTIONS[t.fac].units.indexOf(s.u);
+  if (i < 0 || !t.built['up' + (i + 1)]) return 0;
+  return (UNITS[s.u + '2'].cost.gold - UNITS[s.u].cost.gold) * s.n;
+}
+function upgradeAll(t, hero) {
+  let done = 0;
+  for (const army of [t.garrison, hero && hero.army].filter(Boolean)) army.forEach((s, i) => {
+    const c = upgradeCost(t, s), p = G.players[t.owner];
+    if (!c || p.res.gold < c) return;
+    p.res.gold -= c; done++;
+    const j = army.findIndex((x, k) => x && k !== i && x.u === s.u + '2');
+    if (j >= 0) { army[j].n += s.n; army[i] = null; } else s.u += '2';
+  });
+  if (done) sfx('level');
+  return done;
+}
+// что герой получает, заходя в свой город или начиная в нём день
+function townPerks(h, t, dayStart) {
+  if (t.owner !== h.owner) return;
+  if (t.built.club && !(t.clubSeen || []).includes(h.id)) {
+    const C = FACTIONS[t.fac].club; t.clubSeen = [...(t.clubSeen || []), h.id]; h[C.stat]++;
+    if (!isBot(h.owner)) toast(`${h.name} ${C.text}`, true);
+  }
+  if (dayStart && t.built.garage) h.mp += 20;
 }
 function hireHero(t) {
   const p = G.players[t.owner];
@@ -390,7 +436,7 @@ function hireHero(t) {
   if (p.res.gold < HERO_COST) return `Нужно ${HERO_COST} бабла`;
   p.res.gold -= HERO_COST;
   const h = makeHero(p.id, t.fac, t.x, t.y);
-  h.army[0] = { u: FACTIONS[t.fac].units[0], n: 8 }; h.mp = 0;
+  h.army[0] = { u: townUnit(t, 0), n: 8 }; h.mp = 0;
   G.heroes.push(h); sfx('level'); log(`${p.name} наняли ${h.name}`);
   return h;
 }

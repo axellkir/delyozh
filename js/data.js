@@ -48,11 +48,11 @@ const UNITS = {
 };
 
 const FACTIONS = {
-  kach: { name: 'КАЧАЛКА', town: 'Качалка «Олимп»', units: ['shpana', 'gop', 'boxer', 'byk', 'champ'], desc: 'Сила и наглость. Лучший ближний бой.',
+  kach: { name: 'КАЧАЛКА', club: { name: 'Ринг', stat: 'att', text: 'постоял на ринге: +1 к атаке' }, town: 'Качалка «Олимп»', units: ['shpana', 'gop', 'boxer', 'byk', 'champ'], desc: 'Сила и наглость. Лучший ближний бой.',
     heroes: [{ name: 'Вован Бицепс', spec: 'att' }, { name: 'Толян Штанга', spec: 'def' }, { name: 'Серый', spec: 'xp' }, { name: 'Кабан', spec: 'army' }] },
-  rynok: { name: 'РЫНОК', town: 'Рынок «Черкизон»', units: ['chelnok', 'babka', 'chop', 'buh', 'fura'], desc: 'Стрелки и толстокожие. Деньги любят счёт.',
+  rynok: { name: 'РЫНОК', club: { name: 'Чайхана', stat: 'def', text: 'перетёр с нужными людьми: +1 к защите' }, town: 'Рынок «Черкизон»', units: ['chelnok', 'babka', 'chop', 'buh', 'fura'], desc: 'Стрелки и толстокожие. Деньги любят счёт.',
     heroes: [{ name: 'Ашот Барахолкин', spec: 'gold' }, { name: 'Тётя Зина', spec: 'pow' }, { name: 'Михалыч', spec: 'def' }, { name: 'Жора Обменник', spec: 'mp' }] },
-  neform: { name: 'НЕФОРМАЛЫ', town: 'Подвал «Вечный рок»', units: ['punk', 'metal', 'biker', 'raver', 'ekstra'], desc: 'Быстрые, прыгучие, непредсказуемые.',
+  neform: { name: 'НЕФОРМАЛЫ', club: { name: 'Репетиционная база', stat: 'pow', text: 'отыграл концерт: +1 к понтам' }, town: 'Подвал «Вечный рок»', units: ['punk', 'metal', 'biker', 'raver', 'ekstra'], desc: 'Быстрые, прыгучие, непредсказуемые.',
     heroes: [{ name: 'Кот Шаман', spec: 'pow' }, { name: 'Ржавый', spec: 'mp' }, { name: 'Лиса', spec: 'spd' }, { name: 'Дед Металл', spec: 'att' }] },
 };
 const FAC_IDS = Object.keys(FACTIONS);
@@ -68,6 +68,35 @@ const SPECS = {
   xp: { name: 'Авторитет', desc: '+25% опыта', xp: 1.25 },
   army: { name: 'Толпой веселее', desc: 'в начале в полтора раза больше бойцов', army: 1.5 },
 };
+
+// Навыки, из которых герой выбирает при каждом новом уровне (три случайных на выбор)
+const PERKS = {
+  att: { name: 'Атака +1', ic: 'i_att' }, def: { name: 'Защита +1', ic: 'i_def' }, pow: { name: 'Понты +1', ic: 'i_pow' },
+  mp: { name: 'Ход на карте +10', ic: 'i_spd' }, gold: { name: '+150 бабла в день', ic: 'r_gold' }, mana: { name: 'Запас понтов +5', ic: 'i_mana' },
+  luck: { name: 'Фарт: +4% к шансу', ic: 'i_star' }, lead: { name: 'Кураж: отряды ходят второй раз и за полотряда', ic: 'i_flag' },
+};
+// Коронный номер героя: раз за бой, 10 понтов. target — на кого: ally (свой отряд), enemy (чужой), all (сразу)
+const ULT_COST = 10;
+const HERO_ULT = {
+  'Вован Бицепс': { id: 'u_pump', name: 'Накачка', target: 'ally', desc: () => 'Свой отряд: +5 к атаке до конца боя' },
+  'Толян Штанга': { id: 'u_wall', name: 'Стенка', target: 'all', desc: () => 'Все свои: +4 к защите до конца боя' },
+  'Серый': { id: 'u_talk', name: 'По понятиям', target: 'enemy', desc: () => 'Вражеский отряд пропускает ход и теряет 3 атаки' },
+  'Кабан': { id: 'u_call', name: 'Подтянуть пацанов', target: 'all', desc: p => `На поле выходит шпана: ${6 + 4 * p} бойцов` },
+  'Ашот Барахолкин': { id: 'u_bribe', name: 'Взятка', target: 'enemy', desc: () => 'Вражеский отряд до конца боя не отвечает на удары и теряет 3 атаки' },
+  'Тётя Зина': { id: 'u_scandal', name: 'Скандал', target: 'all', desc: () => 'Все враги: −2 атаки до конца боя и замедление' },
+  'Михалыч': { id: 'u_moon', name: 'Самогон', target: 'ally', desc: () => 'Свой отряд полностью встаёт на ноги' },
+  'Жора Обменник': { id: 'u_rate', name: 'Курс рухнул', target: 'enemy', desc: () => 'Вражеский отряд теряет четверть бойцов' },
+  'Кот Шаман': { id: 'u_hex', name: 'Порча', target: 'all', desc: p => `Урон всем врагам: ${10 + 8 * p}` },
+  'Ржавый': { id: 'u_rev', name: 'Рёв мотора', target: 'all', desc: () => 'Все свои: +3 к скорости на ближайший ход' },
+  'Лиса': { id: 'u_wind', name: 'Второе дыхание', target: 'ally', desc: () => 'Свой отряд сразу ходит ещё раз' },
+  'Дед Металл': { id: 'u_solo', name: 'Соло', target: 'enemy', desc: p => `Урон цели и всем рядом с ней: ${14 + 9 * p}` },
+};
+// Сложность партии: стартовая казна, сила местных и как быстро они растут каждую неделю
+const GAME_DIFF = [
+  { name: 'Лёгкая', gold: 7000, mobs: 0.8, grow: 0.05, desc: 'Больше денег на старте, местные слабее и почти не растут' },
+  { name: 'Обычная', gold: 5000, mobs: 1, grow: 0.1, desc: 'Местные каждую неделю прибавляют 10%' },
+  { name: 'Жёсткая', gold: 3500, mobs: 1.35, grow: 0.16, desc: 'Денег мало, местные сильнее на треть и растут на 16% в неделю' },
+];
 
 // Сложность ботов. income — множитель дохода, edge — во сколько раз бот должен быть сильнее, чтобы лезть в драку «на глаз»,
 // sim — прикидывает бой заранее, keep — какую долю армии готов сохранить после драки, slack — как часто ленится,
@@ -98,17 +127,34 @@ const ARTS = {
 const ART_POOL = ['chain', 'jacket', 'leather', 'phone', 'suit', 'tape', 'pager', 'watch', 'bat'];
 
 // Здания города. req — что нужно построить раньше
+// Улучшенные бойцы: появляются в городе после постройки «улучшения» нужного уровня. Сильнее, быстрее и дороже обычных.
+const UPG_NAMES = { shpana: 'Хулиганы', gop: 'Правильный пацан', boxer: 'Кандидат в мастера', byk: 'Бык в коже', champ: 'Чемпион на «мерине»', chelnok: 'Оптовик', babka: 'Бабка-старожил', chop: 'Начальник охраны', buh: 'Главбух', fura: 'Фура с «крышей»', punk: 'Панк-ветеран', metal: 'Трэшер', biker: 'Ночной волк', raver: 'Диджей', ekstra: 'Целитель из телевизора' };
+for (const u in UPG_NAMES) {
+  const U = UNITS[u];
+  UNITS[u + '2'] = { ...U, name: UPG_NAMES[u], base: u, att: U.att + 2, def: U.def + 2, dmg: [Math.ceil(U.dmg[0] * 1.2), Math.ceil(U.dmg[1] * 1.25)], hp: Math.ceil(U.hp * 1.2), spd: U.spd + 1, ...(U.shots && { shots: U.shots + 4 }), cost: { ...U.cost, gold: Math.round(U.cost.gold * 1.35 / 5) * 5 } };
+}
+
+// Здания города. req — что нужно построить раньше (одно здание или список), tier — открывает найм отрядов этого уровня,
+// up — улучшает отряды этого уровня. Строить можно одно здание в день.
 const BUILDINGS = [
   { id: 'dw1', name: 'Подворотня', tier: 1, cost: { gold: 0 }, desc: 'Нанимать отряды 1 уровня' },
   { id: 'dw2', name: 'Двор', tier: 2, cost: { gold: 1000, brick: 3 }, req: 'dw1', desc: 'Нанимать отряды 2 уровня' },
-  { id: 'dw3', name: 'Секция', tier: 3, cost: { gold: 2000, brick: 5 }, req: 'dw2', desc: 'Нанимать отряды 3 уровня' },
-  { id: 'dw4', name: 'Офис', tier: 4, cost: { gold: 4000, brick: 8, fuel: 4 }, req: 'dw3', desc: 'Нанимать отряды 4 уровня' },
-  { id: 'dw5', name: 'Особняк', tier: 5, cost: { gold: 8000, brick: 12, fuel: 8 }, req: 'dw4', desc: 'Нанимать отряды 5 уровня' },
+  { id: 'dw3', name: 'Секция', tier: 3, cost: { gold: 2500, brick: 5 }, req: ['dw2', 'adm1'], desc: 'Нанимать отряды 3 уровня' },
+  { id: 'dw4', name: 'Офис', tier: 4, cost: { gold: 4500, brick: 8, fuel: 4 }, req: ['dw3', 'market'], desc: 'Нанимать отряды 4 уровня' },
+  { id: 'dw5', name: 'Особняк', tier: 5, cost: { gold: 9000, brick: 14, fuel: 10 }, req: ['dw4', 'adm2', 'fence'], desc: 'Нанимать отряды 5 уровня' },
+  { id: 'up1', name: 'Турники', up: 1, cost: { gold: 800, brick: 2 }, req: ['dw1', 'gym'], desc: 'Улучшает отряды 1 уровня' },
+  { id: 'up2', name: 'Гаражи', up: 2, cost: { gold: 1500, brick: 3 }, req: ['dw2', 'gym'], desc: 'Улучшает отряды 2 уровня' },
+  { id: 'up3', name: 'Спортзал', up: 3, cost: { gold: 2500, brick: 5, fuel: 2 }, req: ['dw3', 'up2'], desc: 'Улучшает отряды 3 уровня' },
+  { id: 'up4', name: 'Свой этаж', up: 4, cost: { gold: 4000, brick: 8, fuel: 4 }, req: ['dw4', 'up3'], desc: 'Улучшает отряды 4 уровня' },
+  { id: 'up5', name: 'Коттедж', up: 5, cost: { gold: 7000, brick: 10, fuel: 8 }, req: ['dw5', 'up4'], desc: 'Улучшает отряды 5 уровня' },
   { id: 'adm1', name: 'Управа', cost: { gold: 2000 }, desc: '+500 бабла в день' },
-  { id: 'adm2', name: 'Мэрия', cost: { gold: 5000, brick: 5 }, req: 'adm1', desc: 'Ещё +1000 бабла в день' },
+  { id: 'adm2', name: 'Мэрия', cost: { gold: 5000, brick: 5 }, req: ['adm1', 'market'], desc: 'Ещё +1000 бабла в день' },
   { id: 'market', name: 'Барахолка', cost: { gold: 1500, brick: 2 }, desc: 'Обмен бабла на бензин и кирпич' },
-  { id: 'fence', name: 'Забор с колючкой', cost: { gold: 2000, brick: 5 }, desc: 'Защитники города получают +3 к защите' },
+  { id: 'fence', name: 'Забор с колючкой', cost: { gold: 2000, brick: 5 }, desc: 'Защитники +3 к защите, в бою — стена с воротами' },
   { id: 'gym', name: 'Качалка', cost: { gold: 1500, brick: 3 }, desc: 'Прирост отрядов 1–2 уровня +50%' },
+  { id: 'bank', name: 'Общак', cost: { gold: 3000, brick: 4 }, req: 'adm1', desc: 'По понедельникам +5% к казне, но не больше 2000' },
+  { id: 'garage', name: 'Автосервис', cost: { gold: 2000, brick: 4, fuel: 2 }, req: 'market', desc: 'Герой, начавший день в городе, получает +20 к ходу' },
+  { id: 'club', name: 'Клуб', cost: { gold: 2500, brick: 4 }, req: 'dw3', desc: 'Каждый свой герой один раз получает здесь +1 к характеристике' },
 ];
 const BLD = Object.fromEntries(BUILDINGS.map(b => [b.id, b]));
 const TOWN_INCOME = 500;

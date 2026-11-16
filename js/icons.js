@@ -130,6 +130,41 @@ const HERO_LOOKS = {
   'Дед Металл': { hair: 'long', hairCol: '#c8c8d0', beard: '#c8c8d0', top: '#15131a', print: '#c8262e', pants: '#2a3350', item: 'guitar' },
 };
 
+// Портрет героя 24×24: крупное лицо из тех же примет, что и фигурка (кожа, причёска, шапка, борода, очки, одежда)
+function sprPortrait(o, bg) {
+  const N = 24, g = new Array(N * N).fill(bg), skin = o.skin || '#f2c49b', dark = sprShade(skin, 0.8), hr = o.hairCol || '#4a3220', hc = o.hatCol || '#333', top = o.top || '#888';
+  const R = (x, y, w, h, c) => { if (!c) return; for (let j = 0; j < h; j++) for (let i = 0; i < w; i++) { const X = x + i, Y = y + j; if (X >= 0 && Y >= 0 && X < N && Y < N) g[Y * N + X] = c; } };
+  R(3, 19, 18, 5, top); R(3, 19, 18, 1, sprShade(top, 1.2)); R(10, 17, 4, 3, dark);                      // плечи, шея
+  if (o.shirt) { R(10, 19, 4, 5, o.shirt); if (o.tie) R(11, 19, 2, 5, o.tie); }
+  if (o.chain) { R(8, 20, 8, 1, '#ffd21a'); R(11, 21, 2, 1, '#ffd21a'); }
+  R(7, 6, 10, 11, skin); R(8, 17, 8, 1, skin); R(6, 10, 1, 3, dark); R(17, 10, 1, 3, dark);              // лицо, уши
+  R(9, 11, 2, 2, '#fff'); R(13, 11, 2, 2, '#fff'); R(10, 11, 1, 2, SPR_INK); R(14, 11, 1, 2, SPR_INK);    // глаза
+  R(9, 9, 2, 1, hr); R(13, 9, 2, 1, hr); if (o.mood === 'angry') { R(10, 10, 1, 1, hr); R(13, 10, 1, 1, hr); }
+  R(12, 13, 1, 2, dark);                                                                                   // нос
+  if (o.beard) { R(7, 14, 10, 4, o.beard); R(8, 18, 8, 1, o.beard); }
+  if (o.mood === 'grin') { R(10, 15, 4, 1, '#fff'); R(9, 14, 1, 1, '#8e1b1b'); R(14, 14, 1, 1, '#8e1b1b'); } else R(10, 15, 4, 1, '#8e1b1b');
+  if (o.glasses) { R(8, 11, 8, 2, o.glasses); R(9, 11, 1, 1, '#c8c8d0'); R(13, 11, 1, 1, '#c8c8d0'); }
+  switch (o.hair) {
+    case 'short': R(7, 5, 10, 2, hr); R(6, 6, 1, 3, hr); R(17, 6, 1, 3, hr); break;
+    case 'mohawk': R(11, 0, 2, 7, hr); R(10, 2, 4, 3, hr); break;
+    case 'long': R(6, 4, 12, 3, hr); R(5, 6, 2, 13, hr); R(17, 6, 2, 13, hr); break;
+    case 'bun': R(7, 4, 10, 3, hr); R(10, 1, 4, 3, hr); R(6, 6, 1, 4, hr); R(17, 6, 1, 4, hr); break;
+    case 'spiky': R(7, 5, 10, 2, hr); R(8, 3, 2, 2, hr); R(11, 2, 2, 3, hr); R(14, 3, 2, 2, hr); break;
+    default: break;
+  }
+  switch (o.hat) {
+    case 'cap': R(6, 4, 12, 3, hc); R(15, 7, 5, 1, hc); break;
+    case 'beanie': R(6, 3, 12, 4, hc); R(6, 6, 12, 1, sprShade(hc, 0.8)); break;
+    case 'ushanka': R(6, 3, 12, 4, hc); R(5, 7, 2, 6, sprShade(hc, 0.8)); R(17, 7, 2, 6, sprShade(hc, 0.8)); R(11, 3, 2, 2, '#c8372d'); break;
+    default: break;
+  }
+  for (let i = 0; i < N; i++) { g[i] = g[(N - 1) * N + i] = g[i * N] = g[i * N + N - 1] = SPR_INK; }        // рамка
+  const c = document.createElement('canvas'); c.width = c.height = N; const x = c.getContext('2d');
+  g.forEach((col, i) => { x.fillStyle = col; x.fillRect(i % N, (i / N) | 0, 1, 1); });
+  return c;
+}
+const PORTRAIT_BG = { kach: '#6b2a30', rynok: '#6b5a2a', neform: '#3a2f6b' };
+const HERO_MOOD = { 'Вован Бицепс': 'grin', 'Толян Штанга': 'calm', 'Серый': 'angry', 'Кабан': 'angry', 'Ашот Барахолкин': 'grin', 'Тётя Зина': 'angry', 'Михалыч': 'calm', 'Жора Обменник': 'grin', 'Кот Шаман': 'calm', 'Ржавый': 'grin', 'Лиса': 'calm', 'Дед Металл': 'angry' };
 function buildIcons() {
   const big = c => { const b = document.createElement('canvas'); b.width = b.height = 64; const x = b.getContext('2d'); x.imageSmoothingEnabled = false; x.drawImage(c, 0, 0, 64, 64); return b.toDataURL(); };
   // для HTML значок обрезается по рисунку и растягивается на весь квадрат — иначе мелкие значки теряются в строке текста
@@ -150,6 +185,9 @@ function buildIcons() {
   for (const name in HERO_LOOKS) {
     const cv = pose => sprCanvas(sprOutline(sprHuman(HERO_LOOKS[name], pose))), frames = [cv(0), cv(1)];
     SPRITES['h_' + name] = { frames, walk: [cv('wa'), cv('wb')], atk: [cv('atk')], url: big(frames[0]) };
+    const fac = FAC_IDS.find(f => FACTIONS[f].heroes.some(h => h.name === name)), pc = sprPortrait({ ...HERO_LOOKS[name], mood: HERO_MOOD[name] }, PORTRAIT_BG[fac] || '#444');
+    const pb = document.createElement('canvas'); pb.width = pb.height = 96; const px = pb.getContext('2d'); px.imageSmoothingEnabled = false; px.drawImage(pc, 0, 0, 96, 96);
+    SPRITES['p_' + name] = { frames: [pc, pc], url: pb.toDataURL() };
   }
 }
 try { buildIcons(); } catch (e) { console.warn('Значки не собрались', e); }
@@ -167,6 +205,6 @@ function sprOf(o) {
 // значок для HTML
 function ico(id, size) { const s = SPRITES[id]; return s ? `<img class="spr" src="${s.url}" width="${size}" height="${size}" alt="">` : ''; }
 const resIco = (r, size) => ico('r_' + r, size || 18);
-const heroIco = (h, size) => ico('h_' + h.name, size);
+const heroIco = (h, size) => ico('p_' + h.name, size) || ico('h_' + h.name, size); // в интерфейсе герой — портретом, на карте — фигуркой
 // значок страницы — из тех же спрайтов
 try { const l = document.querySelector('link[rel=icon]'); if (l && SPRITES.r_gold) l.href = SPRITES.r_gold.url; } catch (e) { /* не страшно */ }

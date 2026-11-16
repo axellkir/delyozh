@@ -61,6 +61,16 @@ await page.evaluate(() => {
   document.body.appendChild(o);
 });
 await page.screenshot({ path: path.join(out, 'frames.png'), clip: { x: 0, y: 0, width: 1440, height: 340 } });
+// портреты героев крупно
+await page.evaluate(() => {
+  document.getElementById('sheet').remove();
+  const ids = Object.keys(SPRITES).filter(id => id.startsWith('p_')), sc = 5, w = 24 * sc, o = document.createElement('canvas'); o.id = 'sheet';
+  o.width = 6 * (w + 16) + 8; o.height = 2 * (w + 26) + 8; o.style.cssText = 'position:fixed;left:0;top:0;z-index:1000;background:#241a2a';
+  const x = o.getContext('2d'); x.imageSmoothingEnabled = false; x.font = 'bold 12px sans-serif'; x.fillStyle = '#fff';
+  ids.forEach((id, i) => { const X = (i % 6) * (w + 16) + 12, Y = Math.floor(i / 6) * (w + 26) + 8; x.drawImage(SPRITES[id].frames[0], X, Y, w, w); x.fillText(id.slice(2), X, Y + w + 15); });
+  document.body.appendChild(o);
+});
+await page.screenshot({ path: path.join(out, 'portraits.png'), clip: { x: 0, y: 0, width: 824, height: 300 } });
 await page.evaluate(() => document.getElementById('sheet').remove());
 await page.screenshot({ path: path.join(out, 'whole.png'), clip: { x: 0, y: 0, width: 1400, height: 900 } });
 await page.setViewport({ width: 1400, height: 1400 });
@@ -72,7 +82,7 @@ for (const [name, x, y] of [['center', info.cx - 1, info.cy], ['home', info.home
   await page.screenshot({ path: path.join(out, name + '.png') });
 }
 // окно города и бой со штурмом (забор, бочки)
-await page.evaluate(() => { const t = myTowns(0)[0]; t.built.dw2 = t.built.dw3 = true; t.avail[FACTIONS[t.fac].units[1]] = 9; openTown(t, heroAt(t.x, t.y)); });
+await page.evaluate(() => { const t = myTowns(0)[0]; Object.assign(t.built, { dw2: true, dw3: true, adm1: true, gym: true, up1: true, market: true }); t.avail[FACTIONS[t.fac].units[1]] = 9; openTown(t, heroAt(t.x, t.y)); });
 await new Promise(r => setTimeout(r, 300));
 await page.screenshot({ path: path.join(out, 'town.png') });
 await page.evaluate(() => { closeTown(); SPEED = 1; });
@@ -86,6 +96,7 @@ for (const [arena, fence] of [['market', true], ['park', false], ['basement', fa
     setTimeout(() => { const t = B.stacks.find(s => s.side === 1); burst(t.x, t.y, 14, ['#ffd21a', '#fff', '#f08a2c'], { v: 0.09 }); floatText(t, 'ФАРТ! −48', '#ffd21a'); }, 450);
   }, arena, fence);
   await new Promise(r => setTimeout(r, 700));
+  if (arena === 'gym') { await page.evaluate(() => toggleSpells()); await new Promise(r => setTimeout(r, 200)); }
   await page.screenshot({ path: path.join(out, `arena-${arena}.png`), clip: { x: 0, y: 0, width: 1140, height: 900 } });
 }
 await browser.close(); server.close();
