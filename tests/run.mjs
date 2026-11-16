@@ -93,10 +93,31 @@ try {
       // взяли город, где держат своего, — он выходит бесплатно
       const h2 = myHeroes(0)[0]; await heroDies(h2, 'проверка', 1); const j2 = myJailed(0)[0], prison = G.objs.find(o => o.id === j2.at);
       prison.owner = 1; for (const x of jail()) if (x.at === prison.id) x.captor = 0; out.free = ransomOf(j2) === 0;
+      // розыск: копится, в понедельник назначается облава, взятка снимает
+      const P = G.players[0]; P.heat = 0; P.raid = false;
+      addHeat(0, 70); out.heat = P.heat; out.stars = heatStars(P);
+      P.res.gold = 10; out.noBribe = typeof bribe(0) === 'string';
+      newWeek(); out.raidSet = P.raid === true;
+      P.res.gold = 99999; const cost = bribeCost(P); out.bribed = bribe(0) === true && P.heat === 0 && P.raid === false && P.res.gold === 99999 - cost;
+      addHeat(0, 80); P.raid = true; await raidCheck(P); out.raidDone = P.raid === false && P.heat < 80;
+      turnEffects(Object.assign(P, { turnDay: -1 })); out.cools = true;
+      // дефолт: казна вчетверо меньше, рынок втрое дороже, случается один раз
+      G.def = { week: weekNo(), done: false }; G.players.forEach(x => { x.res.gold = 8000; });
+      const buy0 = tradeBuy(); newWeek();
+      out.defGold = G.players.map(x => x.res.gold).join(','); out.defTitle = G.week.title; out.buy = [buy0, tradeBuy(), tradeSell()].join(',');
+      G.players.forEach(x => { x.res.gold = 8000; }); newWeek(); out.defOnce = G.players.every(x => x.res.gold >= 6000);
       return out;
     });
     await page.close();
     const bad = [];
+    if (r.heat !== 70 || r.stars !== 3) bad.push(`розыск считается неверно: ${r.heat}, звёзд ${r.stars}`);
+    if (!r.noBribe) bad.push('взятка прошла без денег');
+    if (!r.raidSet) bad.push('при розыске 70 облава в понедельник не назначена');
+    if (!r.bribed) bad.push('взятка не сняла розыск или списала не ту сумму');
+    if (!r.raidDone) bad.push('облава не отработала');
+    if (r.defGold !== '2000,2000' || r.defTitle !== 'Дефолт!') bad.push(`дефолт: казна ${r.defGold}, событие «${r.defTitle}»`);
+    if (r.buy !== '300,900,300') bad.push(`цены рынка до и после дефолта: ${r.buy}`);
+    if (!r.defOnce) bad.push('дефолт случился второй раз');
     if (r.ownerCut !== r.half || r.roofGain !== r.half) bad.push(`крыша делит доход неверно: хозяин теряет ${r.ownerCut}, крыша получает ${r.roofGain}, ждали ${r.half}`);
     if (!r.known || !r.told) bad.push('хозяин не узнал о крыше в понедельник');
     if (!r.jailed) bad.push('проигравший герой не попал в плен в город победителя');
@@ -108,7 +129,7 @@ try {
     if (!r.free) bad.push('освобождённый герой всё ещё стоит денег');
     bad.push(...perr);
     if (bad.length) { failed++; console.log('✗ Правила: крыша и плен'); bad.forEach(e => console.log('    ' + e.split('\n').slice(0, 3).join('\n    '))); }
-    else console.log('✓ Правила: крыша делит доход пополам, хозяин узнаёт в понедельник; плен, выкуп победителю, бесплатное освобождение');
+    else console.log('✓ Правила: крыша, плен и выкуп, розыск с облавой и взяткой, дефолт');
   }
 } finally { await browser.close(); server.kill(); fs.rmSync(data, { recursive: true, force: true }); }
 if (failed) { console.log(`\nУпало сценариев: ${failed}`); process.exit(1); }

@@ -7,6 +7,8 @@ const AI = { sims: 0 };
 
 // что бот отвечает на окна игры вместо человека
 function botAnswer(pid, title, buttons) {
+  if (title.includes('Облава') && buttons.length > 1) { const c = +((buttons[1].match(/\d+/) || [0])[0]); return G.players[pid].res.gold >= c + 3000 ? 1 : 0; } // откупиться, если не последнее
+  if (title.includes('Петровка')) return G.players[pid].res.gold >= 4000 ? 0 : 1;
   if (title.includes('уровень')) { const r = Math.random(); return r < 0.45 ? 0 : r < 0.8 ? 1 : 2; }
   if (title.includes('Общак') || buttons[0].startsWith('Забрать')) return G.players[pid].res.gold < 4000 ? 0 : 1;
   return 0;
@@ -48,9 +50,15 @@ function aiTown(p, D) {
     const next = BUILD_ORDER.map(id => BLD[id]).find(b => !t.built[b.id] && [].concat(b.req || []).every(r => t.built[r]));
     if (next && t.built.market && t.builtDay !== G.day) for (const r of ['fuel', 'brick']) {
       let guard = 20;
-      while (guard-- > 0 && (p.res[r] || 0) < (next.cost[r] || 0) && p.res.gold >= (next.cost.gold || 0) + TRADE_BUY) trade(p.id, r, true);
+      while (guard-- > 0 && (p.res[r] || 0) < (next.cost[r] || 0) && p.res.gold >= (next.cost.gold || 0) + tradeBuy()) trade(p.id, r, true);
     }
     for (const id of BUILD_ORDER) if (buildState(t, BLD[id]) === 'ok') { build(t, id); break; }
+    if (t.built.market && G.def) { // слухи о дефолте: лишнее бабло — в товар; после дефолта товар — обратно в бабло, когда казна пуста
+      let guard = 40;
+      if (!G.def.done && weekNo() >= G.def.week - 1) while (guard-- > 0 && p.res.gold > 3000) trade(p.id, guard % 2 ? 'fuel' : 'brick', true);
+      if (G.def.done) for (const r of ['fuel', 'brick']) while (guard-- > 0 && p.res.gold < 1500 && p.res[r] > 8) trade(p.id, r, false);
+    }
+    if (t.built.adm1 && (p.heat || 0) >= HEAT_RAID - 5 && p.res.gold >= bribeCost(p) + 2500) bribe(p.id); // не доводить до облавы
     const h = heroAt(t.x, t.y), own = h && h.owner === p.id ? h : null;
     for (const u of FACTIONS[t.fac].units.slice().reverse()) { const n = maxRecruit(t, u); if (n > 0) recruit(t, u, n, own); }
     if (p.res.gold > 2000) upgradeAll(t, own);

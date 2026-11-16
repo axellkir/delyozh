@@ -159,6 +159,9 @@ const BUILDINGS = [
 const BLD = Object.fromEntries(BUILDINGS.map(b => [b.id, b]));
 const TOWN_INCOME = 500;
 const HERO_COST = 2500, MAX_HEROES = 4, MAX_SLOTS = 5, TRADE_BUY = 300, TRADE_SELL = 100;
+// Розыск: копится за наглость (0–100), каждый день остывает. С HEAT_WARN — ориентировка, с HEAT_RAID в понедельник приезжает ОМОН
+const HEAT_WARN = 40, HEAT_RAID = 60, HEAT_COOL = 3;
+const HEAT = { mob: 1, hero: 12, town: 10, townOwned: 20, mine: 6, roof: 4 };
 
 // Понты — заклинания героя. Один раз за раунд боя, стоят «понты» (ману)
 const SPELLS = [

@@ -85,7 +85,7 @@ function mobArmy(level) {
 function genMap(cfg) {
   const seed = rnd(1, 99999), kind = cfg.map === 'ring' ? 'ring' : 'msk', np = cfg.players.length, gd = GAME_DIFF[cfg.diff] ? cfg.diff : 1;
   setMap(Math.max(3, np), kind === 'msk' ? (np <= 3 ? 56 : np === 4 ? 64 : 72) : 0);
-  G = { ver: 5, diff: gd, seed, turnNo: 0, map: kind, size: MW, nsec: NSEC, day: 1, cur: 0, view: 0, nextId: 1, tiles: kind === 'msk' ? mskTerrain(seed) : genTerrain(seed), objs: [], heroes: [], players: [], log: [], week: null, over: false };
+  G = { ver: 6, diff: gd, def: { week: rnd(5, 7), done: false }, seed, turnNo: 0, map: kind, size: MW, nsec: NSEC, day: 1, cur: 0, view: 0, nextId: 1, tiles: kind === 'msk' ? mskTerrain(seed) : genTerrain(seed), objs: [], heroes: [], players: [], log: [], week: null, over: false };
   cfg.players.forEach((p, i) => G.players.push({ id: i, seat: p.seat == null ? i : p.seat, name: p.name, fac: p.fac, kind: p.kind === 'bot' ? 'bot' : 'human', diff: clamp(p.diff == null ? 1 : p.diff, 0, DIFF.length - 1), col: p.col || PCOL[i], res: { gold: GAME_DIFF[gd].gold, fuel: 5, brick: 10 }, alive: true, seen: new Array(MW * MH).fill(0), inbox: [], tavernDay: 0 }));
   G.view = Math.max(0, G.players.findIndex(p => p.kind !== 'bot'));
   const free = (x, y) => inMap(x, y) && passT(tileAt(x, y)) && !G.objs.some(o => o.x === x && o.y === y);

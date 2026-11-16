@@ -65,6 +65,7 @@ function turnEffects(p) {
     const t = townAt(h.x, h.y); if (t) townPerks(h, t, true);
   }
   p.noTown = myTowns(p.id).length ? 0 : (p.noTown || 0) + 1;
+  p.heat = Math.max(0, (p.heat || 0) - HEAT_COOL); // розыск понемногу остывает
 }
 // В день одновременных ходов чужие бригады людей не трогаем: каждый считает свой день сам, и драка между ними рассинхронила бы партию
 const simPeace = owner => NET.on && !!G.sim && owner >= 0 && !isBot(owner);
@@ -83,7 +84,7 @@ async function beginTurn() {
   if (netRemote(p.id)) { BOTTING = false; refresh(); netHandOver(); return; }
   if (bot) {
     refresh();
-    try { await sleep(350); await botTurn(p); }
+    try { await sleep(350); await raidCheck(p); if (!G.over) await botTurn(p); }
     catch (e) { console.error('Ошибка в ходе бота', e); BUSY = false; }
     BOTTING = false;
     if (!G.over) await endTurn(); else refresh();
@@ -97,6 +98,7 @@ async function turnIntro(p) {
   G.view = p.id; NET.view = p.id; NET.introTurn = G.turnNo; refresh();
   if (humans().filter(x => x.alive && !netRemote(x.id)).length > 1) await curtain(p); else { audioInit(); toast(`Ваш ход · неделя ${weekNo()}, день ${dayOfWeek()}`); }
   if (p.inbox && p.inbox.length) { const news = p.inbox.splice(0); await ask(`${ico('i_news', 24)} Пока вас не было`, news.join('<br>'), ['Понятно']); }
+  await raidCheck(p);
   if (p.noTown) await ask(`${ico('i_warn', 24)} Нет своего города!`, `Осталось дней, чтобы захватить любой город: ${7 - p.noTown}. Иначе бригада распадётся.`, ['Понял']);
   if (G.week && p.weekSeen !== weekNo()) {
     p.weekSeen = weekNo();
@@ -122,7 +124,11 @@ async function endTurn() {
   await beginTurn();
 }
 function newWeek() {
-  const ev = pick(WEEK_EVENTS);
+  // Дефолт случается один раз, на неделе, которую заранее никто не знает (5–7-я); за две недели начинают ходить слухи
+  const D = G.def, w = weekNo(), boom = !!D && !D.done && w >= D.week;
+  const ev = boom ? { title: 'Дефолт!', text: 'Рубль рухнул. Казна у всех усохла вчетверо, а на барахолке всё втрое дороже — и покупать, и продавать. Кто держал товар, а не бабло, тот в выигрыше.', fx: g => { g.def.done = true; g.players.forEach(p => { p.res.gold = Math.floor(p.res.gold / 4); }); } } : pick(WEEK_EVENTS);
+  if (D && !D.done && !boom && w >= D.week - 2) G.players.forEach(p => notify(p.id, w === D.week - 1 ? 'В обменниках очереди, курс скачет каждый час. Умные люди срочно переводят бабло в бензин и кирпич.' : 'По радио говорят, что с рублём всё в порядке. Обычно это значит, что скоро будет не в порядке.'));
+  for (const p of G.players) if (p.alive && (p.heat || 0) >= HEAT_RAID) p.raid = true; // к самым наглым в начале их хода приедет ОМОН
   G.week = { title: ev.title, text: ev.text };
   for (const t of G.objs) if (t.t === 'town') {
     const units = FACTIONS[t.fac].units;
@@ -216,7 +222,7 @@ async function enterTile(h, last, action) {
   }
   if (o.t === 'mine') {
     const M = mineOf(o), take = () => { // забрать точку себе
-      if (o.owner >= 0) notify(o.owner, `${p.name} отжали у вас точку: ${M.name}.${botLine(h.owner, 'mine')}`);
+      if (o.owner >= 0) { notify(o.owner, `${p.name} отжали у вас точку: ${M.name}.${botLine(h.owner, 'mine')}`); addHeat(h.owner, HEAT.mine); }
       o.owner = h.owner; reveal(h.owner, o.x, o.y, 3); sfx('flag'); mapFloat(o.x, o.y, 'наша точка!', pcol(h.owner));
       toast(`${M.name} — теперь ваша точка: +${M.amt} ${RES_GEN[MINE[o.kind].res]} в день`); log(`${p.name} взяли точку: ${M.name}`);
     };
@@ -251,7 +257,7 @@ async function enterTile(h, last, action) {
       const k = await ask('Кого оставить смотрящими?', 'Отряд останется на точке и будет её держать. Чем он сильнее, тем труднее снять крышу.', idx.map(i => `${unitIcon(h.army[i].u, 20)} ${UNITS[h.army[i].u].name} ×${h.army[i].n}`), { pid: h.owner });
       const i = idx[k] == null ? idx[0] : idx[k];
       o.roof = { owner: h.owner, army: [h.army[i], null, null, null, null], day: G.day, known: false }; h.army[i] = null;
-      sfx('flag'); mapFloat(o.x, o.y, 'крыша!', pcol(h.owner)); toast(`${M.name} под вашей крышей: +${Math.ceil(M.amt / 2)} ${RES_GEN[MINE[o.kind].res]} в день`); log(`${p.name} поставили крышу: ${M.name}`);
+      addHeat(h.owner, HEAT.roof); sfx('flag'); mapFloat(o.x, o.y, 'крыша!', pcol(h.owner)); toast(`${M.name} под вашей крышей: +${Math.ceil(M.amt / 2)} ${RES_GEN[MINE[o.kind].res]} в день`); log(`${p.name} поставили крышу: ${M.name}`);
     }
     return false;
   }
@@ -273,6 +279,11 @@ async function enterTile(h, last, action) {
   }
   if (o.t === 'bonus') {
     const B = bonusOf(o);
+    if (o.sp === 'police' && (p.heat || 0) >= 20) { // Петровка, 38: решить вопрос с розыском
+      const c = bribeCost(p, true);
+      const a = await ask(`${ico('police', 24)} Петровка, 38`, `На бригаду розыск. Здесь вопрос решается за ${c} бабла — вдвое дешевле, чем через Управу.`, [`Занести ${c}`, 'В другой раз'], { pid: h.owner });
+      if (a === 0) { const r = bribe(p.id, true); toast(r === true ? 'Розыск снят' : r, true); }
+    }
     if (o.seen.includes(h.id)) { toast(o.kind === 'mp' ? 'Шаурма кончилась, приходите на следующей неделе' : 'Тут уже были'); return true; }
     o.seen.push(h.id); sfx('level');
     if (o.kind === 'att') h.att++; else if (o.kind === 'def') h.def++; else if (o.kind === 'pow') h.pow++; else if (o.kind === 'mp') h.mp += 40;
@@ -308,7 +319,7 @@ async function fightMob(h, mob) {
   const r = await runBattle({ a: { army: h.army, hero: h, owner: h.owner }, d: { army: mob.army, hero: null, owner: -1 }, title: 'Разборка с местными', arena: arenaAt(mob.x, mob.y, null, mob.boss) });
   const p = G.players[h.owner];
   if (r.winner === 0) {
-    h.army = r.aArmy; removeObj(mob);
+    h.army = r.aArmy; removeObj(mob); addHeat(h.owner, HEAT.mob);
     const loot = (mob.lvl || 1) * rnd(3, 6) * 100; p.res.gold += loot;
     await ask('Победа!', `Местные разбежались. В карманах нашлось ${loot}${resIco('gold', 16)}.`, ['Дальше'], { pid: h.owner });
     await giveXp(h, xpFromKills(before, r.dArmy));
@@ -336,6 +347,7 @@ async function fightHero(h, o, inTown) {
   if (lose.owner !== G.cur) notify(lose.owner, `${win.name} (${G.players[win.owner].name}) разбил вашего героя ${lose.name} и взял его в плен.${botLine(win.owner, 'kill')}`);
   else if (win.owner !== G.cur) notify(win.owner, `${lose.name} (${G.players[lose.owner].name}) полез на вашего героя ${win.name} и не вывез.`);
   await heroDies(lose, `проиграл стрелку против ${win.name}`, win.owner);
+  if (win === h) addHeat(h.owner, HEAT.hero); // наглеет тот, кто напал и победил
   await giveXp(win, xpFromKills(bL, r.winner === 0 ? r.dArmy : r.aArmy) + 500);
   return r.winner === 0;
 }
@@ -365,6 +377,7 @@ async function siege(h, t) {
     await giveXp(h, xpFromKills(before, r.dArmy));
   }
   const old = t.owner;
+  addHeat(h.owner, old >= 0 ? HEAT.townOwned : HEAT.town);
   if (old >= 0) notify(old, `${p.name} взяли ваш город ${t.name}.${botLine(h.owner, 'town')}`);
   t.owner = h.owner; t.garrison = [null, null, null, null, null];
   for (const j of jail()) if (j.at === t.id) { // свои выходят на свободу (вызвать можно даром), чужие переходят к новым хозяевам города
@@ -378,6 +391,54 @@ async function siege(h, t) {
   else await ask(`${ico('i_flag', 24)} Город наш!`, `${t.name} переходит к бригаде «${p.name}».${old >= 0 ? ' Бывшие хозяева в ярости.' : ''}`, ['Заходим'], { pid: h.owner });
   checkWin();
 }
+// ---------- розыск ----------
+// За наглость — драки, захваты, крыши — бригаде копится розыск. Остывает сам, снимается взяткой: в своём городе с Управой
+// или вдвое дешевле на Петровке, 38. Кто к понедельнику набрал HEAT_RAID, к тому в начале хода приезжает ОМОН.
+function addHeat(pid, n) {
+  const p = G.players[pid]; if (!p || !p.alive) return;
+  const was = p.heat || 0; p.heat = clamp(was + n, 0, 100);
+  if (was < HEAT_WARN && p.heat >= HEAT_WARN) {
+    const m = `На бригаду вышла ориентировка. Ещё немного наглости — и в понедельник приедет ОМОН. Откупиться можно в своём городе с Управой${G.map === 'msk' ? ' или вдвое дешевле на Петровке, 38' : ''}.`;
+    if (pid === G.cur && !isBot(pid) && !netRemote(pid)) toast(m, true); else notify(pid, m);
+  }
+}
+const heatStars = p => Math.min(5, Math.floor((p.heat || 0) / 20));
+const bribeCost = (p, half) => Math.round((p.heat || 0) * (half ? 30 : 60) / 10) * 10;
+function bribe(pid, half) {
+  const p = G.players[pid], c = bribeCost(p, half);
+  if (!c) return 'Вас и так не ищут';
+  if (p.res.gold < c) return `Нужно ${c} бабла`;
+  p.res.gold -= c; p.heat = 0; p.raid = false; sfx('coin');
+  return true;
+}
+// облава в начале хода: ОМОН приезжает за самым сильным героем бригады
+async function raidCheck(p) {
+  if (!p.raid || G.over) return;
+  p.raid = false;
+  const h = myHeroes(p.id).slice().sort((a, b) => armyValue(b.army) - armyValue(a.army))[0], w = weekNo(), k = GAME_DIFF[G.diff == null ? 1 : G.diff].mobs;
+  if (!h) { // героев нет — берут кассу
+    const fine = Math.floor(p.res.gold * 0.3); p.res.gold -= fine; p.heat = Math.max(0, p.heat - 40);
+    await ask(`${ico('police', 24)} Облава!`, `Героев не нашли, зато нашли кассу: изъято ${fine} бабла.`, ['Понятно'], { pid: p.id });
+    return;
+  }
+  const army = [{ u: 'omon', n: Math.round((3 + w + p.heat / 25) * k) }, { u: 'patrol', n: Math.round((6 + 2 * w) * k) }, { u: 'omon', n: Math.round((2 + w) * k) }, null, null];
+  const cost = Math.round(bribeCost(p) * 1.5 / 10) * 10;
+  if (!isBot(p.id)) centerOn(h.x, h.y);
+  const c = await ask(`${ico('police', 24)} Облава!`, `ОМОН приехал за героем ${h.name}: ${armyText(army)}. Можно отбиться — или занести ${cost} бабла, и вас тут не было.`, ['Отбиваться', `Откупиться: ${cost}`], { pid: p.id });
+  if (c === 1 && p.res.gold >= cost) { p.res.gold -= cost; p.heat = Math.max(0, p.heat - 50); sfx('coin'); return; }
+  const before = army.map(x => x && { ...x });
+  const r = await runBattle({ a: { army, hero: null, owner: -1 }, d: { army: h.army, hero: h, owner: h.owner }, title: 'Облава', arena: arenaAt(h.x, h.y, townAt(h.x, h.y)) });
+  if (r.winner === 1) {
+    h.army = r.dArmy; p.heat = Math.max(0, p.heat - 30);
+    await ask('Отбились!', 'ОМОН уехал ни с чем. Розыск поутих.', ['Дальше'], { pid: p.id });
+    await giveXp(h, xpFromKills(before, r.aArmy));
+  } else {
+    p.heat = Math.max(0, p.heat - 40);
+    await heroDies(h, 'взят при облаве');
+    await ask('Повязали', `${h.name} уехал в Бутырку. Выкупить его можно в своём городе.`, ['Эх'], { pid: p.id });
+  }
+}
+
 // ---------- плен ----------
 // Проигравший герой не пропадает: его забирают в плен победители (держат в своём ближайшем городе) или милиция — в Бутырку.
 // Хозяин может выкупить его в любом своём городе; выкуп у бригады идёт ей в казну. Взял город, где держат героя, — освободил.
@@ -517,10 +578,12 @@ function hireHero(t) {
   G.heroes.push(h); sfx('level'); log(`${p.name} наняли ${h.name}`);
   return h;
 }
+// после дефолта на барахолке всё втрое дороже — и покупать, и продавать
+const tradeBuy = () => TRADE_BUY * (G.def && G.def.done ? 3 : 1), tradeSell = () => TRADE_SELL * (G.def && G.def.done ? 3 : 1);
 function trade(pid, res, buy) {
   const r = G.players[pid].res;
-  if (buy) { if (r.gold < TRADE_BUY) return false; r.gold -= TRADE_BUY; r[res]++; }
-  else { if (r[res] < 1) return false; r[res]--; r.gold += TRADE_SELL; }
+  if (buy) { if (r.gold < tradeBuy()) return false; r.gold -= tradeBuy(); r[res]++; }
+  else { if (r[res] < 1) return false; r[res]--; r.gold += tradeSell(); }
   sfx('coin'); return true;
 }
 
