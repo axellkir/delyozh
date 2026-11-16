@@ -77,15 +77,16 @@ function mobArmy(level) {
   if (level >= 5) return [{ u: 'omon', n: rnd(9, 11) }, { u: 'patrol', n: rnd(18, 22) }, { u: 'champ', n: 2 }, { u: 'omon', n: rnd(9, 11) }, null];
   const [u, a, b] = pick(MOB_TABLE[level]);
   const n = rnd(a, b), army = [null, null, null, null, null];
+  if (level >= 3) { const [u2, a2, b2] = pick(MOB_TABLE[level - 1]); army[2] = { u: u2, n: rnd(a2, b2) }; } // подмога уровнем ниже
   if (n >= 8 && Math.random() < 0.6) { army[0] = { u, n: Math.ceil(n / 2) }; army[1] = { u, n: Math.floor(n / 2) }; } else army[0] = { u, n };
   return army;
 }
 
 function genMap(cfg) {
-  const seed = rnd(1, 99999), kind = cfg.map === 'ring' ? 'ring' : 'msk', np = cfg.players.length;
+  const seed = rnd(1, 99999), kind = cfg.map === 'ring' ? 'ring' : 'msk', np = cfg.players.length, gd = GAME_DIFF[cfg.diff] ? cfg.diff : 1;
   setMap(Math.max(3, np), kind === 'msk' ? (np <= 3 ? 56 : np === 4 ? 64 : 72) : 0);
-  G = { ver: 4, seed, turnNo: 0, map: kind, size: MW, nsec: NSEC, day: 1, cur: 0, view: 0, nextId: 1, tiles: kind === 'msk' ? mskTerrain(seed) : genTerrain(seed), objs: [], heroes: [], players: [], log: [], week: null, over: false };
-  cfg.players.forEach((p, i) => G.players.push({ id: i, seat: p.seat == null ? i : p.seat, name: p.name, fac: p.fac, kind: p.kind === 'bot' ? 'bot' : 'human', diff: clamp(p.diff == null ? 1 : p.diff, 0, DIFF.length - 1), col: p.col || PCOL[i], res: { gold: 5000, fuel: 5, brick: 10 }, alive: true, seen: new Array(MW * MH).fill(0), inbox: [], tavernDay: 0 }));
+  G = { ver: 5, diff: gd, seed, turnNo: 0, map: kind, size: MW, nsec: NSEC, day: 1, cur: 0, view: 0, nextId: 1, tiles: kind === 'msk' ? mskTerrain(seed) : genTerrain(seed), objs: [], heroes: [], players: [], log: [], week: null, over: false };
+  cfg.players.forEach((p, i) => G.players.push({ id: i, seat: p.seat == null ? i : p.seat, name: p.name, fac: p.fac, kind: p.kind === 'bot' ? 'bot' : 'human', diff: clamp(p.diff == null ? 1 : p.diff, 0, DIFF.length - 1), col: p.col || PCOL[i], res: { gold: GAME_DIFF[gd].gold, fuel: 5, brick: 10 }, alive: true, seen: new Array(MW * MH).fill(0), inbox: [], tavernDay: 0 }));
   G.view = Math.max(0, G.players.findIndex(p => p.kind !== 'bot'));
   const free = (x, y) => inMap(x, y) && passT(tileAt(x, y)) && !G.objs.some(o => o.x === x && o.y === y);
   const near = (x, y) => { for (let rr = 0; rr <= 3; rr++) for (let dy = -rr; dy <= rr; dy++) for (let dx = -rr; dx <= rr; dx++) if (free(x + dx, y + dy)) return [x + dx, y + dy]; return null; };
@@ -135,6 +136,8 @@ function genMap(cfg) {
   add({ t: 'pile', res: 'gold', amt: 5000 }, MCX, MCY - 1);
   add({ t: 'pile', res: 'gold', amt: 5000 }, MCX - 1, MCY);
   add({ t: 'mob', army: mobArmy(5), lvl: 5, boss: true }, MCX, MCY);
+  // сложность партии: местные и ничьи гарнизоны сильнее или слабее
+  { const k = GAME_DIFF[gd].mobs; if (k !== 1) for (const o of G.objs) { const army = o.t === 'mob' ? o.army : o.t === 'town' && o.owner < 0 ? o.garrison : null; if (army) army.forEach(s => { if (s) s.n = Math.max(1, Math.round(s.n * k)); }); } }
   reindex();
   // всё, до чего нельзя дойти от первого города, убираем
   const reach = floodFrom(G.objs.find(o => o.t === 'town').x, G.objs.find(o => o.t === 'town').y);
@@ -189,7 +192,7 @@ function revealAll(pid) {
 }
 
 // ---------- путь героя ----------
-const heroMaxMp = h => 90 + ((SPECS[h.spec] || {}).mp || 0) + h.arts.reduce((s, a) => s + (ARTS[a].mp || 0), 0);
+const heroMaxMp = h => 90 + ((SPECS[h.spec] || {}).mp || 0) + 10 * ((h.perks || {}).mp || 0) + h.arts.reduce((s, a) => s + (ARTS[a].mp || 0), 0);
 function mobZone() {
   const z = new Int32Array(MW * MH).fill(-1);
   for (const o of G.objs) if (o.t === 'mob') for (const [dx, dy] of DIRS) if (inMap(o.x + dx, o.y + dy)) z[(o.y + dy) * MW + o.x + dx] = o.id;

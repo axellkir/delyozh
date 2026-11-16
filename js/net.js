@@ -154,7 +154,7 @@ async function netTakeTurn() {
 async function netStart() {
   const R = NET.room;
   const players = R.seats.map((s, i) => ({ seat: i, kind: s.kind, name: s.name || PCOL_NAME[i], fac: s.fac, hero: s.hero, diff: s.diff, col: PCOL[i] })).filter(p => p.kind !== 'off');
-  genMap({ players, map: R.map });
+  genMap({ players, map: R.map, diff: gameDiff });
   NET.shown = true; NET.overShown = false; NET.introTurn = -1; NET.auth = true; netMine();
   const d = await netSend(netPack(), netMeta(), null, true);
   if (!d) { G = null; NET.auth = false; renderMenu(); return; }
@@ -288,7 +288,7 @@ function netBattlePush(end) {
   if (!NET.on || !NET.auth || (G && G.sim) || (!end && (!B || B.quick || B.mirror))) return; // в общий день каждый дерётся у себя, показывать некому
   const data = end ? null : JSON.stringify({
     title: B.title, arena: B.arena, round: B.round, active: B.active ? B.active.id : -1, need: B.need == null ? -1 : B.need, log: B.log,
-    sides: B.sides.map(sd => ({ owner: sd.owner, hero: sd.hero ? { name: sd.hero.name, mana: sd.hero.mana } : null, st: sd.st, castRound: sd.castRound, fence: sd.fence, remote: !!sd.remote })),
+    sides: B.sides.map(sd => ({ owner: sd.owner, hero: sd.hero ? { name: sd.hero.name, mana: sd.hero.mana, fac: sd.hero.fac } : null, st: sd.st, castRound: sd.castRound, ultUsed: !!sd.ultUsed, fence: sd.fence, remote: !!sd.remote })),
     stacks: B.stacks.map(s => ({ id: s.id, side: s.side, slot: s.slot, u: s.u, n: s.n, n0: s.n0, hp: s.hp, x: s.x, y: s.y, shots: s.shots, ret: s.ret, buff: s.buff, defd: s.defd, waited: s.waited, curse: s.curse, slow: s.slow, stun: s.stun, moved: s.moved })),
     obst: [...B.obst], barrels: [...B.barrels], fences: [...B.fences], queue: B.queue.map(s => s.id),
   });
@@ -299,7 +299,7 @@ function netMirror(data) {
   if (!data) { if (B && B.mirror) { battleUI(false); B = null; } return; }
   const v = JSON.parse(data), old = B && B.mirror ? B : null, pool0 = s => (s.n - 1) * UNITS[s.u].hp + s.hp;
   const stacks = v.stacks.map(s => { const o = old && old.stacks.find(x => x.id === s.id); return { ...s, px: o ? o.px : s.x, py: o ? o.py : s.y, flash: o && pool0(o) > pool0(s) ? 1 : 0, lunge: null, was: o ? pool0(o) : pool0(s) }; });
-  const sides = v.sides.map((sd, i) => ({ i, owner: sd.owner, hero: sd.hero, st: sd.st, castRound: sd.castRound, fence: sd.fence, remote: sd.remote, auto: !(sd.remote && NET.mine.has(sd.owner)) }));
+  const sides = v.sides.map((sd, i) => ({ i, owner: sd.owner, hero: sd.hero, st: sd.st, castRound: sd.castRound, ultUsed: sd.ultUsed, fence: sd.fence, remote: sd.remote, auto: !(sd.remote && NET.mine.has(sd.owner)) }));
   const active = stacks.find(s => s.id === v.active) || null, mine = v.need >= 0 && active && active.side === v.need && NET.mine.has(sides[v.need].owner);
   B = { mirror: true, quick: false, title: v.title, arena: ARENAS[v.arena] ? v.arena : 'yard', parts: old ? old.parts : [], bg: old ? old.bg : null, round: v.round, sides, stacks, obst: new Set(v.obst), barrels: new Set(v.barrels), fences: new Set(v.fences), queue: v.queue.map(id => stacks.find(s => s.id === id)).filter(Boolean), active, log: v.log, fx: old ? old.fx : [], shake: old ? old.shake : 0, spell: null, busy: false, over: false, need: v.need, wait: mine ? () => {} : null };
   for (const s of stacks) if (s.was > pool0(s)) { B.fx.push({ x: s.x, y: s.y, text: `−${s.was - pool0(s)}`, col: '#ff5050', t: 0 }); burst(s.x, s.y, 6, ['#ff5050', '#c8372d', '#f08a2c'], { v: 0.06 }); if (s.n <= 0) { B.shake = 5; s.dead = 1; burst(s.x, s.y, 12, ['#c8c8d0', '#8a8a96'], { v: 0.06, g: -0.001 }); } }

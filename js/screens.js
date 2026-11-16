@@ -46,15 +46,18 @@ function renderTown(t, hero) {
   if (hero && hero.owner !== t.owner) hero = null;
   const p = G.players[t.owner], F = FACTIONS[t.fac], units = F.units;
   const bcard = b => {
-    const st = buildState(t, b), label = { built: `${ico('i_ok', 14)} построено`, req: `нужно: ${b.req && BLD[b.req].name}`, today: 'сегодня уже строили', money: 'не хватает', ok: '' }[st];
-    const name = b.tier ? `${b.name}: ${unitIcon(units[b.tier - 1], 24)}` : b.name;
-    return `<div class="bcard ${st === 'built' ? 'built' : ''}"><b>${name}</b><span>${b.desc}</span><span>${st === 'built' ? '' : costText(b.cost)}</span>${st === 'ok' ? `<button data-b="${b.id}">Построить</button>` : `<small>${label}</small>`}</div>`;
+    const st = buildState(t, b), need = [].concat(b.req || []).filter(r => !t.built[r]).map(r => BLD[r].name).join(', ');
+    const label = { built: `${ico('i_ok', 14)} построено`, req: `нужно: ${need}`, today: 'сегодня уже строили', money: 'не хватает', ok: '' }[st];
+    const name = b.tier ? `${b.name}: ${unitIcon(units[b.tier - 1], 24)}` : b.up ? `${b.name}: ${unitIcon(units[b.up - 1] + '2', 24)}` : b.id === 'club' ? F.club.name : b.name;
+    const desc = b.up ? `Отряды ${b.up} уровня → ${UNITS[units[b.up - 1] + '2'].name}` : b.id === 'club' ? `Каждый свой герой один раз: ${F.club.text}` : b.desc;
+    return `<div class="bcard ${st === 'built' ? 'built' : ''}"><b>${name}</b><span>${desc}</span><span>${st === 'built' ? '' : costText(b.cost)}</span>${st === 'ok' ? `<button data-b="${b.id}">Построить</button>` : `<small>${label}</small>`}</div>`;
   };
   const rcard = (u, i) => {
-    const U = UNITS[u], ok = t.built['dw' + (i + 1)], n = t.avail[u] || 0, mx = maxRecruit(t, u);
-    return `<div class="rcard ${ok ? '' : 'lock'}"><div class="em">${unitIcon(u, 64)}</div><b>${U.name}</b><br>${ico('i_att', 16)}${U.att} ${ico('i_def', 16)}${U.def} ${ico('i_hp', 16)}${U.hp} ${ico('i_spd', 16)}${U.spd}<br>урон ${U.dmg[0]}–${U.dmg[1]}${U.shots ? ' · стрелок' : ''}${U.fly ? ' · прыгает' : ''}<br><i>${U.note || '&nbsp;'}</i><br>
+    const v = townUnit(t, i), U = UNITS[v], ok = t.built['dw' + (i + 1)], n = t.avail[u] || 0, mx = maxRecruit(t, u);
+    return `<div class="rcard ${ok ? '' : 'lock'}"><div class="em">${unitIcon(v, 64)}</div><b>${U.name}</b><br>${ico('i_att', 16)}${U.att} ${ico('i_def', 16)}${U.def} ${ico('i_hp', 16)}${U.hp} ${ico('i_spd', 16)}${U.spd}<br>урон ${U.dmg[0]}–${U.dmg[1]}${U.shots ? ' · стрелок' : ''}${U.fly ? ' · прыгает' : ''}<br><i>${U.note || '&nbsp;'}</i><br>
       цена ${costText(U.cost)}<br>доступно: <b>${ok ? n : '—'}</b><br>${ok ? `<div class="btns" style="justify-content:center;margin-top:4px"><button data-r="${u}" data-n="1" ${mx ? '' : 'disabled'}>+1</button><button data-r="${u}" data-n="${mx}" ${mx ? '' : 'disabled'}>Все (${mx})</button></div>` : ''}</div>`;
   };
+  const upList = [...t.garrison, ...(hero ? hero.army : [])].map(x => upgradeCost(t, x)).filter(Boolean), upSum = upList.reduce((a, c) => a + c, 0), upMin = upList.length ? Math.min(...upList) : 0;
   const market = t.built.market ? `<h3>Барахолка</h3><div class="btns">${['fuel', 'brick'].map(r => `<button data-buy="${r}">Купить ${resIco(r)} за ${TRADE_BUY}${resIco('gold', 16)}</button><button class="sec" data-sell="${r}">Продать ${resIco(r)} за ${TRADE_SELL}${resIco('gold', 16)}</button>`).join('')}</div>` : '';
   $('townBox').innerHTML = `
     <div style="display:flex;align-items:center;gap:14px">${ico('t_' + t.fac, 64)}<div><div class="fun" style="font-size:16px;color:${p.col}">${t.name}</div><small>${F.name} · ${F.desc}</small></div>
@@ -62,10 +65,11 @@ function renderTown(t, hero) {
     <h3 style="margin-top:12px">Стройка — одно здание в день</h3><div class="tgrid">${BUILDINGS.map(bcard).join('')}</div>
     <h3>Найм — новые бойцы приходят по понедельникам</h3><div class="rgrid">${units.map(rcard).join('')}</div>
     <div class="row">${armyRow(t.garrison, 'g', 'Гарнизон (охраняет город)')}${hero ? armyRow(hero.army, 'h', `${heroIco(hero, 24)} ${hero.name}`) : ''}</div>
-    <div class="btns" style="margin:10px 0">${hero ? '<button class="sec" id="allH">Всех к герою</button><button class="sec" id="allG">Всех в гарнизон</button>' : `<button id="hire">Нанять героя за ${HERO_COST}${resIco('gold', 16)}</button>`}<small style="align-self:center">Клик по отряду, потом по другому месту — переставить или объединить.</small></div>
+    <div class="btns" style="margin:10px 0">${hero ? '<button class="sec" id="allH">Всех к герою</button><button class="sec" id="allG">Всех в гарнизон</button>' : `<button id="hire">Нанять героя за ${HERO_COST}${resIco('gold', 16)}</button>`}${upSum ? `<button id="upAll" ${p.res.gold >= upMin ? '' : 'disabled'}>Переобуть отряды в улучшенных: ${upSum}${resIco('gold', 16)}</button>` : ''}<small style="align-self:center">Клик по отряду, потом по другому месту — переставить или объединить.</small></div>
     ${market}`;
   const R = () => renderTown(t, hero), box = $('townBox');
   $('tClose').onclick = closeTown;
+  if ($('upAll')) $('upAll').onclick = () => { if (!upgradeAll(t, hero)) toast('Не хватает бабла'); R(); };
   box.querySelectorAll('[data-b]').forEach(el => el.onclick = () => { build(t, el.dataset.b); R(); });
   box.querySelectorAll('[data-r]').forEach(el => el.onclick = () => { recruit(t, el.dataset.r, +el.dataset.n, hero); R(); });
   box.querySelectorAll('[data-buy]').forEach(el => el.onclick = () => { if (!trade(t.owner, el.dataset.buy, true)) toast('Не хватает бабла'); R(); });
@@ -114,7 +118,7 @@ function toggleSpells() {
   const sd = B.sides[B.active.side];
   if (!$('bSpells').hidden) { $('bSpells').hidden = true; return; }
   if (!sd.hero || sd.auto) return;
-  $('bSpells').innerHTML = SPELLS.map(sp => `<button data-sp="${sp.id}" ${sd.hero.mana < sp.cost || !canCast(sd) ? 'disabled' : ''}>${ico('s_' + sp.id, 20)} ${sp.name} — ${sp.cost}${ico('i_mana', 14)}<small>${sp.desc(sd.st.pow)}</small></button>`).join('');
+  $('bSpells').innerHTML = spellList(sd).map(sp => `<button data-sp="${sp.id}" ${sd.hero.mana < sp.cost || !canCast(sd) || (sp.ult && sd.ultUsed) ? 'disabled' : ''}>${ico(sp.ult ? 'i_star' : 's_' + sp.id, 20)} ${sp.ult ? 'Коронный номер: ' : ''}${sp.name} — ${sp.cost}${ico('i_mana', 14)}<small>${sp.desc(sd.st.pow)}</small></button>`).join('');
   $('bSpells').hidden = false;
   $('bSpells').querySelectorAll('[data-sp]').forEach(el => el.onclick = () => { $('bSpells').hidden = true; chooseSpell(el.dataset.sp); });
 }
@@ -140,7 +144,8 @@ try {
 } catch (e) { /* настройки лобби не обязательны */ }
 const saveLobby = () => { try { localStorage.setItem(LOBBY_KEY, JSON.stringify(seats)); } catch (e) { /* не страшно */ } };
 const MAPS = [['msk', 'Москва 90-х', 'Настоящая Москва: река, мосты, шоссе, Лужники, Черкизон, Останкино. У каждого свой район, поровну добра вокруг.'], ['ring', 'Схема', 'Симметричная схема из одинаковых секторов — когда нужен совсем честный расклад.']];
-let mapKind = 'msk';
+let mapKind = 'msk', gameDiff = 1;
+try { const d = +localStorage.getItem('delyozh_diff'); if (GAME_DIFF[d] && localStorage.getItem('delyozh_diff') != null) gameDiff = d; } catch (e) { /* не страшно */ }
 try { if (localStorage.getItem('delyozh_map') === 'ring') mapKind = 'ring'; } catch (e) { /* не страшно */ }
 const esc = t => String(t).replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
 
@@ -160,8 +165,8 @@ function renderMenu() {
       <input data-pn="${i}" value="${esc(p.name)}" maxlength="16" placeholder="Название бригады" ${edit ? '' : 'disabled'}>${who}
       <div class="seg wide ${edit ? '' : 'ro'}">${FAC_IDS.map(f => `<span class="${p.fac === f ? 'on' : ''}" data-seat="${i}" data-fac="${f}" title="${FACTIONS[f].desc}">${ico('t_' + f, 18)} ${FACTIONS[f].name[0] + FACTIONS[f].name.slice(1).toLowerCase()}</span>`).join('')}</div>
       <small>${F.desc}</small>
-      <div class="seg wide heroes ${edit ? '' : 'ro'}"><span class="${hc ? '' : 'on'}" data-seat="${i}" data-hero="-1" title="Случайный герой">${ico('i_dice', 28)}</span>${F.heroes.map((c, k) => `<span class="${p.hero === k ? 'on' : ''}" data-seat="${i}" data-hero="${k}" title="${c.name} — ${SPECS[c.spec].name}: ${SPECS[c.spec].desc}">${ico('h_' + c.name, 28)}</span>`).join('')}</div>
-      <small>${hc ? `<b>${hc.name}</b> · ${ico('i_star', 12)} ${SPECS[hc.spec].name}: ${SPECS[hc.spec].desc}` : 'Герой: какой придёт'}</small>
+      <div class="seg wide heroes ${edit ? '' : 'ro'}"><span class="${hc ? '' : 'on'}" data-seat="${i}" data-hero="-1" title="Случайный герой">${ico('i_dice', 28)}</span>${F.heroes.map((c, k) => `<span class="${p.hero === k ? 'on' : ''}" data-seat="${i}" data-hero="${k}" title="${c.name} — ${SPECS[c.spec].name}: ${SPECS[c.spec].desc}. Коронный номер: ${HERO_ULT[c.name].name}">${ico('p_' + c.name, 32)}</span>`).join('')}</div>
+      <small>${hc ? `<b>${hc.name}</b> · ${ico('i_star', 12)} ${SPECS[hc.spec].name}: ${SPECS[hc.spec].desc}<br>Коронный номер «${HERO_ULT[hc.name].name}»: ${HERO_ULT[hc.name].desc(1).toLowerCase()}` : 'Герой: какой придёт'}</small>
       ${p.kind === 'bot' ? `<div class="seg wide ${host ? '' : 'ro'}">${DIFF.map((d, k) => `<span class="${p.diff === k ? 'on' : ''}" data-seat="${i}" data-diff="${k}" title="${d.desc}">${ico('d_' + k, 16)} ${d.name}</span>`).join('')}</div><small>${DIFF[p.diff].desc}</small>` : ''}</div>`;
   };
   $('pset').innerHTML = list.map(card).join('');
@@ -205,6 +210,10 @@ function renderMenu() {
     if (R) { netOp('map', { map: el.dataset.map }); return; }
     mapKind = el.dataset.map; try { localStorage.setItem('delyozh_map', mapKind); } catch (e) { /* не страшно */ } renderMenu();
   });
+  $('diffSeg').className = 'seg' + (host ? '' : ' ro');
+  $('diffSeg').innerHTML = GAME_DIFF.map((d, k) => `<span class="${gameDiff === k ? 'on' : ''}" data-gd="${k}" title="${d.desc}">${d.name}</span>`).join('');
+  $('diffNote').textContent = 'Сложность партии: ' + GAME_DIFF[gameDiff].desc.toLowerCase();
+  document.querySelectorAll('[data-gd]').forEach(el => el.onclick = () => { if (!host) return; gameDiff = +el.dataset.gd; try { localStorage.setItem('delyozh_diff', gameDiff); } catch (e) { /* не страшно */ } sfx('click'); renderMenu(); });
   renderNetBar(R);
   $('contBtn').disabled = !hasSave();
 }
@@ -240,7 +249,7 @@ $('newBtn').onclick = () => {
   if (NET.on && NET.room) { netStart(); return; }
   if (hasSave() && !confirm('Начать новую игру? Сохранённая партия пропадёт.')) return;
   const players = seats.map((p, i) => ({ ...p, seat: i, col: PCOL[i], name: p.name.trim() || PCOL_NAME[i] })).filter(p => p.kind !== 'off');
-  genMap({ players, map: mapKind });
+  genMap({ players, map: mapKind, diff: gameDiff });
   startPlaying();
 };
 $('contBtn').onclick = () => { audioInit(); if (loadGame()) startPlaying(); else toast('Сохранение не читается', true); };

@@ -35,7 +35,7 @@ function runBattle(cfg) {
   return new Promise(resolve => {
     // remote — игрок за другим компьютером и в сети: бой покажется у него, своими отрядами он командует сам (живая защита).
     // За сторону ходит ИИ, если это местные, бот или прикидка боя; понтами ИИ пользуется только у ботов не ниже обычного
-    const side = (c, i) => ({ i, hero: c.hero, owner: c.owner, fence: !!c.fence, st: c.hero ? heroStats(c.hero) : { att: 0, def: 0, pow: 0, spd: 0 }, castRound: 0, remote: !cfg.sim && netRemote(c.owner) && netSeatOnline(c.owner), auto: c.owner < 0 || !!cfg.sim || isBot(c.owner) || (netRemote(c.owner) ? !netSeatOnline(c.owner) : !!window.AUTOBATTLE), aiCast: !!c.hero && (cfg.sim ? true : isBot(c.owner) && DIFF[G.players[c.owner].diff].spells), src: c.army });
+    const side = (c, i) => ({ i, hero: c.hero, owner: c.owner, fence: !!c.fence, st: c.hero ? heroStats(c.hero) : { att: 0, def: 0, pow: 0, spd: 0 }, castRound: 0, ultUsed: false, remote: !cfg.sim && netRemote(c.owner) && netSeatOnline(c.owner), auto: c.owner < 0 || !!cfg.sim || isBot(c.owner) || (netRemote(c.owner) ? !netSeatOnline(c.owner) : !!window.AUTOBATTLE), aiCast: !!c.hero && (cfg.sim ? true : isBot(c.owner) && DIFF[G.players[c.owner].diff].spells), src: c.army });
     const sides = [side(cfg.a, 0), side(cfg.d, 1)];
     // бой без людей не показываем: он считается мгновенно
     const quick = !!cfg.sim || (sides[0].auto && sides[1].auto);
@@ -98,7 +98,7 @@ function effDef(t) {
 // moved — сколько клеток отряд пройдёт перед ударом (для прикидки разбега); без него берётся уже пройденное
 function dmgRange(a, t, ranged, moved) {
   const U = UNITS[a.u], D = effDef(t);
-  let A = U.att + B.sides[a.side].st.att - (a.curse || 0);
+  let A = U.att + B.sides[a.side].st.att - (a.curse || 0) + (a.buffA || 0);
   if (!ranged && UNITS[t.u].stink) A -= 3;
   let m = A >= D ? Math.min(3, 1 + 0.05 * (A - D)) : Math.max(0.3, 1 - 0.025 * (D - A));
   if (U.shots && !ranged) m *= 0.5;
@@ -131,7 +131,7 @@ async function strike(a, t, ranged, main) {
   } else a.lunge = { dx: Math.sign(t.x - a.x), dy: Math.sign(t.y - a.y), t: 0 };
   const [lo, hi] = dmgRange(a, t, ranged);
   let dmg = Math.round(lo + (hi - lo) * (Math.random() + Math.random()) / 2);
-  const crit = Math.random() < Math.min(0.25, 0.07 + 0.02 * sd.st.pow); // фарт: чем больше понтов у героя, тем чаще
+  const crit = Math.random() < Math.min(0.35, 0.07 + 0.02 * sd.st.pow + (sd.st.luck || 0)); // фарт: чем больше понтов у героя, тем чаще
   if (crit) dmg = Math.round(dmg * 1.5);
   const k = applyDmg(t, dmg); sfx(k ? 'kill' : 'hit');
   burst(t.x, t.y, crit ? 14 : 6, crit ? ['#ffd21a', '#fff', '#f08a2c'] : ['#ff5050', '#c8372d', '#f08a2c'], { v: crit ? 0.09 : 0.06 });
@@ -147,12 +147,12 @@ async function strike(a, t, ranged, main) {
   if (main && U.splash) for (const e of enemiesOf(a)) if (e !== t && cheb(e, t) <= 1) also(e, 0.4);
   if (main && U.pierce && !ranged) { const e = stackAt(t.x + Math.sign(t.x - a.x), t.y + Math.sign(t.y - a.y)); if (e && e.side !== a.side) also(e, 0.5); }
   // кураж: положил отряд целиком — ходи ещё раз (раз за раунд)
-  if (main && !alive(t) && a.kur !== B.round) { a.kur = B.round; a.extra = true; floatText(a, 'КУРАЖ!', '#7dff7d'); blog(`${sName(a)} на кураже — ходят ещё раз`); }
+  if (main && (!alive(t) || (sd.st.lead && k * 2 >= t.n0)) && alive(a) && a.kur !== B.round) { a.kur = B.round; a.extra = true; floatText(a, 'КУРАЖ!', '#7dff7d'); blog(`${sName(a)} на кураже — ходят ещё раз`); }
   await sleep(220);
 }
 async function melee(a, t) {
   await strike(a, t, false, true);
-  if (alive(t) && alive(a) && (t.ret > 0 || UNITS[t.u].guard) && !UNITS[a.u].noRet) { if (!UNITS[t.u].guard) t.ret--; await sleep(120); await strike(t, a, false, false); }
+  if (alive(t) && alive(a) && (t.ret > 0 || UNITS[t.u].guard) && !t.bribed && !UNITS[a.u].noRet) { if (!UNITS[t.u].guard) t.ret--; await sleep(120); await strike(t, a, false, false); }
   if (alive(a) && alive(t) && UNITS[a.u].twice) { blog('…и ещё двойкой!'); await strike(a, t, false, true); }
 }
 async function walk(s, path) {
@@ -237,7 +237,7 @@ async function remoteExec(s, c) {
     await melee(s, t); return true;
   }
   if (c.k === 'spell') {
-    const sp = SPELLS.find(x => x.id === c.id);
+    const sp = spellOf(sd, c.id);
     if (!sp || !sd.hero || !canCast(sd) || sd.hero.mana < sp.cost) return false;
     if (sp.target !== 'all' && (!t || (sp.target === 'enemy') !== (t.side !== s.side))) return false;
     await castSpell(sp, sp.target === 'all' ? null : t);
@@ -248,7 +248,7 @@ async function remoteExec(s, c) {
 
 function endBattle(winner) {
   B.over = true;
-  const out = i => { const arr = [null, null, null, null, null]; B.stacks.filter(s => s.side === i && alive(s)).forEach(s => { arr[s.slot] = { u: s.u, n: s.n }; }); return arr; };
+  const out = i => { const arr = [null, null, null, null, null]; B.stacks.filter(s => s.side === i && alive(s) && s.slot >= 0).forEach(s => { arr[s.slot] = { u: s.u, n: s.n }; }); return arr; }; // подтянутые на бой (slot −1) после него расходятся
   const r = { winner, aArmy: out(0), dArmy: out(1) };
   const res = B.resolve, quick = B.quick; SPEED = B.speed0;
   if (!quick) { battleUI(false); netBattlePush(true); }
@@ -272,6 +272,17 @@ function distField(side) {
 async function aiCast(s) {
   const sd = B.sides[s.side], h = sd.hero;
   if (!sd.aiCast || !canCast(sd)) return;
+  const ult = spellOf(sd, (HERO_ULT[h.name] || {}).id);
+  if (ult && h.mana >= ULT_COST && B.round <= 3) {
+    const val = e => pool(e) / UNITS[e.u].hp * worth(e.u), foes = enemiesOf(s), mine = B.stacks.filter(x => alive(x) && x.side === s.side);
+    const sum = l => l.reduce((a, e) => a + val(e), 0);
+    if (sum(foes) > sum(mine) * 0.4) {                       // на мелочь не тратим
+      const best = l => l.reduce((b, e) => (val(e) > val(b) ? e : b));
+      let t = ult.target === 'enemy' ? best(foes) : ult.target === 'ally' ? best(mine) : null;
+      if (ult.id === 'u_moon') { const hurt = mine.filter(e => e.n < e.n0); t = hurt.length ? hurt.reduce((b, e) => ((e.n0 - e.n) * worth(e.u) > (b.n0 - b.n) * worth(b.u) ? e : b)) : null; if (!t) return; }
+      await castSpell(ult, t); return;
+    }
+  }
   const p = sd.st.pow, en = enemiesOf(s), opts = [];
   const hurt = (t, d) => Math.min(d, pool(t)) / UNITS[t.u].hp * worth(t.u);
   if (h.mana >= 5) { const t = en.reduce((b, e) => (hurt(e, 12 + 10 * p) > hurt(b, 12 + 10 * p) ? e : b)); opts.push({ id: 'naezd', t, v: hurt(t, 12 + 10 * p) / 5 }); }
@@ -352,8 +363,12 @@ function battleWait() { if (B && B.mirror) { if (B.active && B.active.waited) to
 function battleDefend() { if (B && B.mirror) { netCmd({ k: 'defend' }); return; } act(async () => { B.active.defd = true; blog(`${sName(B.active)} встают в оборону`); }); }
 function battleAuto() { if (!B) return; if (B.mirror) { netCmd({ k: 'auto' }); return; } const sd = B.sides[B.active.side]; sd.auto = true; toast('Авто-бой: дальше сами'); if (B.wait) { const w = B.wait; B.wait = null; aiTurn(B.active).then(() => { refreshBattleUI(); w(); }); } }
 function canCast(sd) { return sd.hero && sd.castRound !== B.round; }
+// понты героя: четыре общих и его коронный номер (раз за бой)
+function spellList(sd) { const u = sd.hero && HERO_ULT[sd.hero.name]; return u ? [...SPELLS, { ...u, cost: ULT_COST, ult: true }] : SPELLS; }
+const spellOf = (sd, id) => spellList(sd).find(x => x.id === id && !(x.ult && sd.ultUsed));
 function chooseSpell(id) {
-  const s = B.active, sd = B.sides[s.side], sp = SPELLS.find(x => x.id === id), h = sd.hero;
+  const s = B.active, sd = B.sides[s.side], sp = spellOf(sd, id), h = sd.hero;
+  if (!sp) { toast('Коронный номер — раз за бой'); return; }
   if (!canCast(sd)) { toast('Понты — раз за раунд'); return; }
   if (h.mana < sp.cost) { toast('Не хватает понтов'); return; }
   if (sp.target === 'all') { if (B.mirror) netCmd({ k: 'spell', id: sp.id }); else castSpell(sp, null); return; }
@@ -368,6 +383,34 @@ function castOn(t) {
 async function castSpell(sp, t) {
   const s = B.active, sd = B.sides[s.side], p = sd.st.pow;
   sd.hero.mana -= sp.cost; sd.castRound = B.round; B.spell = null; B.busy = true; sfx('spell');
+  if (sp.ult) {
+    sd.ultUsed = true; B.shake = Math.max(B.shake, 6);
+    const hit = (e, d) => { const k = applyDmg(e, d); floatText(e, `−${d}${k ? ' · легло ' + k : ''}`, '#ffd21a'); burst(e.x, e.y, 8, ['#ffd21a', '#f08a2c'], { v: 0.07 }); };
+    const mine = B.stacks.filter(x => alive(x) && x.side === s.side), foes = enemiesOf(s), H = t && UNITS[t.u].hp;
+    blog(`${sd.hero.name}: коронный номер «${sp.name}»!`);
+    if (t) floatText(t, sp.name + '!', '#ffd21a', 0.3);
+    if (sp.id === 'u_pump') { t.buffA = (t.buffA || 0) + 5; burst(t.x, t.y, 10, ['#ff5050', '#ffd21a'], { v: 0.03, up: 0.03, g: 0 }); }
+    if (sp.id === 'u_wall') for (const e of mine) { e.buff += 4; burst(e.x, e.y, 5, ['#6cf', '#2f7fc4'], { v: 0.03, up: 0.02, g: 0 }); }
+    if (sp.id === 'u_talk') { t.stun = true; if (!t.curse) t.curse = 3; }
+    if (sp.id === 'u_bribe') { t.bribed = true; t.ret = 0; if (!t.curse) t.curse = 3; burst(t.x, t.y, 10, ['#4cc552', '#ffd21a'], { v: 0.04, up: 0.02, g: 0 }); }
+    if (sp.id === 'u_scandal') for (const e of foes) { if (!e.curse) e.curse = 2; e.slow = 2; burst(e.x, e.y, 5, ['#b97cf5', '#e79ab0'], { v: 0.04 }); }
+    if (sp.id === 'u_moon') { t.n = t.n0; t.hp = H; burst(t.x, t.y, 12, ['#7dff7d', '#fff'], { v: 0.03, up: 0.03, g: 0 }); }
+    if (sp.id === 'u_rate') hit(t, Math.ceil(pool(t) * 0.25));
+    if (sp.id === 'u_hex') for (const e of foes) hit(e, 10 + 8 * p);
+    if (sp.id === 'u_rev') for (const e of mine) { e.slow = -3; burst(e.x, e.y, 4, ['#f08a2c', '#c8c8d0'], { v: 0.05 }); }
+    if (sp.id === 'u_wind') { if (t !== s) B.queue.unshift(t); else t.extra = true; burst(t.x, t.y, 10, ['#8fdcf5', '#fff'], { v: 0.06 }); }
+    if (sp.id === 'u_solo') for (const e of foes) if (e === t || cheb(e, t) <= 1) hit(e, 14 + 9 * p);
+    if (sp.id === 'u_call') { // подмога выходит со своего края поля
+      const u = FACTIONS[sd.hero.fac] ? FACTIONS[sd.hero.fac].units[0] : 'shpana', n = 6 + 4 * p, x0 = s.side ? BW - 2 : 1;
+      let cell = null; for (let k = 0; k < BW * BH && !cell; k++) { const x = s.side ? x0 - Math.floor(k / BH) : x0 + Math.floor(k / BH), y = (k * 3 + 2) % BH; if (!blockedCell(x, y) && !stackAt(x, y)) cell = { x, y }; }
+      if (cell) { const st = { id: 200 + B.stacks.length, side: s.side, slot: -1, u, n, n0: n, moved: 0, curse: 0, slow: 0, stun: false, extra: false, kur: 0, lunge: null, hp: UNITS[u].hp, x: cell.x, y: cell.y, px: s.side ? BW : -1, py: cell.y, shots: UNITS[u].shots || 0, ret: 1, buff: 0, defd: false, waited: false, flash: 0 }; B.stacks.push(st); B.queue.push(st); floatText(st, 'подтянулись!', '#7dff7d'); }
+    }
+    await sleep(520); B.busy = false;
+    const over = [0, 1].find(i => !B.stacks.some(x => x.side === i && alive(x)));
+    if (over !== undefined && B.wait) { const w = B.wait; B.wait = null; w(); }
+    refreshBattleUI();
+    return;
+  }
   if (t) burst(t.x, t.y, 10, sp.id === 'naezd' ? ['#ff9030', '#c8372d'] : sp.id === 'krysha' ? ['#6cf', '#2f7fc4'] : ['#7dff7d', '#8fdcf5'], { v: 0.05, up: sp.id === 'naezd' ? 0 : 0.03, g: sp.id === 'naezd' ? 0.004 : 0 });
   else for (const e of enemiesOf(s)) burst(e.x, e.y, 6, ['#ffd21a', '#fff'], { v: 0.07 });
   if (sp.id === 'naezd') { const d = 12 + 10 * p, k = applyDmg(t, d); floatText(t, `−${d}${k ? ' · легло ' + k : ''}`, '#ff9030'); blog(`${sd.hero.name}: «Наезд» на ${sName(t)}: ${d}`); }

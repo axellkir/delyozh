@@ -2,7 +2,7 @@
 // Бот на карте: строит, нанимает, водит героев. Играет по тем же правилам и видит только то, что открыл сам.
 // Отличия уровней — в таблице DIFF (js/data.js). Этот же код гоняет партии в автотесте (tests/bot.js).
 
-const BUILD_ORDER = ['dw2', 'adm1', 'dw3', 'market', 'dw4', 'adm2', 'gym', 'fence', 'dw5'];
+const BUILD_ORDER = ['dw2', 'adm1', 'gym', 'dw3', 'up1', 'market', 'up2', 'dw4', 'adm2', 'fence', 'up3', 'bank', 'club', 'garage', 'dw5', 'up4', 'up5'];
 const AI = { sims: 0 };
 
 // что бот отвечает на окна игры вместо человека
@@ -45,7 +45,7 @@ async function worthFight(h, defs, D) {
 function aiTown(p, D) {
   for (const t of myTowns(p.id)) {
     // на рынке докупаем то, чего не хватает до следующей стройки
-    const next = BUILD_ORDER.map(id => BLD[id]).find(b => !t.built[b.id] && (!b.req || t.built[b.req]));
+    const next = BUILD_ORDER.map(id => BLD[id]).find(b => !t.built[b.id] && [].concat(b.req || []).every(r => t.built[r]));
     if (next && t.built.market && t.builtDay !== G.day) for (const r of ['fuel', 'brick']) {
       let guard = 20;
       while (guard-- > 0 && (p.res[r] || 0) < (next.cost[r] || 0) && p.res.gold >= (next.cost.gold || 0) + TRADE_BUY) trade(p.id, r, true);
@@ -53,6 +53,7 @@ function aiTown(p, D) {
     for (const id of BUILD_ORDER) if (buildState(t, BLD[id]) === 'ok') { build(t, id); break; }
     const h = heroAt(t.x, t.y), own = h && h.owner === p.id ? h : null;
     for (const u of FACTIONS[t.fac].units.slice().reverse()) { const n = maxRecruit(t, u); if (n > 0) recruit(t, u, n, own); }
+    if (p.res.gold > 2000) upgradeAll(t, own);
     if (own) aiPickup(own, t);
     if (!h && myHeroes(p.id).length < D.heroes && p.res.gold >= HERO_COST + 3000) hireHero(t);
     if (!h && !myHeroes(p.id).length && p.res.gold >= HERO_COST) hireHero(t); // без героя бригада не живёт
