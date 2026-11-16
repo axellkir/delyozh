@@ -268,6 +268,7 @@ function simMerge(subs) {
       if (o.t === 'town' && mine(o) && (pids.includes(b.owner) || m.owner === b.owner)) G.objs[i] = o;           // свой город или взятый первым
       else if (o.t === 'town' && !mine(o) && m.owner === b.owner && !same(o.garrison, b.garrison)) m.garrison = o.garrison; // потрёпанный гарнизон после неудачного штурма
       else if (o.t === 'mine' && mine(o) && o.owner !== b.owner && m.owner === b.owner) G.objs[i] = o;
+      else if (o.t === 'mine' && !same(o.roof || null, b.roof || null)) m.roof = o.roof || null;   // поставили или сняли крышу
       else if (o.t === 'bonus' && o.seen.length !== b.seen.length) m.seen = [...new Set([...m.seen, ...o.seen])];
       else if (o.t === 'mob' && !same(o.army, b.army)) m.army = o.army;
     }
@@ -277,6 +278,7 @@ function simMerge(subs) {
       const extra = (S.players[p.id].inbox || []).slice((base.players[p.id].inbox || []).length);       // что этот игрок «сообщил» другим
       if (extra.length) p.inbox = [...(p.inbox || []), ...extra];
     }
+    G.jail = (G.jail || []).filter(j => !pids.includes(j.hero.owner)).concat((S.jail || []).filter(j => pids.includes(j.hero.owner))); // пленные — от их хозяина
     G.nextId = Math.max(G.nextId, S.nextId);
   }
 }

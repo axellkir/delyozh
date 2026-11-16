@@ -58,6 +58,9 @@ function renderTown(t, hero) {
       цена ${costText(U.cost)}<br>доступно: <b>${ok ? n : '—'}</b><br>${ok ? `<div class="btns" style="justify-content:center;margin-top:4px"><button data-r="${u}" data-n="1" ${mx ? '' : 'disabled'}>+1</button><button data-r="${u}" data-n="${mx}" ${mx ? '' : 'disabled'}>Все (${mx})</button></div>` : ''}</div>`;
   };
   const upList = [...t.garrison, ...(hero ? hero.army : [])].map(x => upgradeCost(t, x)).filter(Boolean), upSum = upList.reduce((a, c) => a + c, 0), upMin = upList.length ? Math.min(...upList) : 0;
+  const jl = myJailed(t.owner), held = jail().filter(j => j.at === t.id && j.captor === t.owner && j.hero.owner !== t.owner);
+  const jailHtml = jl.length ? `<h3>Наши в неволе</h3><div class="btns" style="margin-bottom:10px">${jl.map((j, k) => `<button class="sec" data-ran="${k}">${heroIco(j.hero, 24)} ${j.hero.name}, ур. ${j.hero.lvl} — ${jailPlace(j)} · ${ransomOf(j) ? `выкуп ${ransomOf(j)}${resIco('gold', 16)}` : 'позвать бесплатно'}</button>`).join('')}</div>` : '';
+  const heldHtml = held.length ? `<div style="margin-bottom:10px"><small>В этом городе держат пленных: ${held.map(j => `${j.hero.name} (${G.players[j.hero.owner].name}), выкуп ${ransomOf(j)}`).join('; ')}. Возьмут город — пленные уйдут.</small></div>` : '';
   const market = t.built.market ? `<h3>Барахолка</h3><div class="btns">${['fuel', 'brick'].map(r => `<button data-buy="${r}">Купить ${resIco(r)} за ${TRADE_BUY}${resIco('gold', 16)}</button><button class="sec" data-sell="${r}">Продать ${resIco(r)} за ${TRADE_SELL}${resIco('gold', 16)}</button>`).join('')}</div>` : '';
   $('townBox').innerHTML = `
     <div style="display:flex;align-items:center;gap:14px">${ico('t_' + t.fac, 64)}<div><div class="fun" style="font-size:16px;color:${p.col}">${t.name}</div><small>${F.name} · ${F.desc}</small></div>
@@ -66,9 +69,11 @@ function renderTown(t, hero) {
     <h3>Найм — новые бойцы приходят по понедельникам</h3><div class="rgrid">${units.map(rcard).join('')}</div>
     <div class="row">${armyRow(t.garrison, 'g', 'Гарнизон (охраняет город)')}${hero ? armyRow(hero.army, 'h', `${heroIco(hero, 24)} ${hero.name}`) : ''}</div>
     <div class="btns" style="margin:10px 0">${hero ? '<button class="sec" id="allH">Всех к герою</button><button class="sec" id="allG">Всех в гарнизон</button>' : `<button id="hire">Нанять героя за ${HERO_COST}${resIco('gold', 16)}</button>`}${upSum ? `<button id="upAll" ${p.res.gold >= upMin ? '' : 'disabled'}>Переобуть отряды в улучшенных: ${upSum}${resIco('gold', 16)}</button>` : ''}<small style="align-self:center">Клик по отряду, потом по другому месту — переставить или объединить.</small></div>
+    ${jailHtml}${heldHtml}
     ${market}`;
   const R = () => renderTown(t, hero), box = $('townBox');
   $('tClose').onclick = closeTown;
+  box.querySelectorAll('[data-ran]').forEach(el => el.onclick = () => { const r = ransom(t, jl[+el.dataset.ran]); if (typeof r === 'string') toast(r, true); else { selectHero(r); hero = r; } R(); });
   if ($('upAll')) $('upAll').onclick = () => { if (!upgradeAll(t, hero)) toast('Не хватает бабла'); R(); };
   box.querySelectorAll('[data-b]').forEach(el => el.onclick = () => { build(t, el.dataset.b); R(); });
   box.querySelectorAll('[data-r]').forEach(el => el.onclick = () => { recruit(t, el.dataset.r, +el.dataset.n, hero); R(); });
