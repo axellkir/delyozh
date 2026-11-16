@@ -38,40 +38,64 @@ function bindSlots(root, armies, rerender) {
 // ---------- город ----------
 let townDone = null;
 function openTown(t, hero) {
-  return new Promise(res => { SLOT = null; townDone = res; $('town').hidden = false; renderTown(t, hero); });
+  return new Promise(res => { SLOT = null; townDone = res; $('town').hidden = false; $('toast').style.opacity = 0; renderTown(t, hero); });
 }
 function closeTown() { $('town').hidden = true; SLOT = null; refresh(); if (townDone) { const r = townDone; townDone = null; r(); } }
+// значки зданий хозяйства и защиты
+const BICON = { adm1: 'r_gold', adm2: 'whitehouse', market: 'stall', bank: 'chest', garage: 'champ', gym: 'b_att', fence: 'o_fence', club: 'amp' };
 function renderTown(t, hero) {
+  const keep = [...document.querySelectorAll('#townBox .tcol')].map(c => c.scrollTop);
   hero = hero && heroById(hero.id) && hero.x === t.x && hero.y === t.y ? hero : heroAt(t.x, t.y);
   if (hero && hero.owner !== t.owner) hero = null;
-  const p = G.players[t.owner], F = FACTIONS[t.fac], units = F.units;
-  const bcard = b => {
-    const st = buildState(t, b), need = [].concat(b.req || []).filter(r => !t.built[r]).map(r => BLD[r].name).join(', ');
-    const label = { built: `${ico('i_ok', 14)} построено`, req: `нужно: ${need}`, today: 'сегодня уже строили', money: 'не хватает', ok: '' }[st];
-    const name = b.tier ? `${b.name}: ${unitIcon(units[b.tier - 1], 24)}` : b.up ? `${b.name}: ${unitIcon(units[b.up - 1] + '2', 24)}` : b.id === 'club' ? F.club.name : b.name;
-    const desc = b.up ? `Отряды ${b.up} уровня → ${UNITS[units[b.up - 1] + '2'].name}` : b.id === 'club' ? `Каждый свой герой один раз: ${F.club.text}` : b.desc;
-    return `<div class="bcard ${st === 'built' ? 'built' : ''}"><b>${name}</b><span>${desc}</span><span>${st === 'built' ? '' : costText(b.cost)}</span>${st === 'ok' ? `<button data-b="${b.id}">Построить</button>` : `<small>${label}</small>`}</div>`;
+  const p = G.players[t.owner], F = FACTIONS[t.fac], units = F.units, today = t.builtDay === G.day;
+  // плитка постройки: значок и имя, одна строка описания, внизу цена с кнопкой — или что мешает
+  const tile = id => {
+    const b = BLD[id], st = buildState(t, b), need = [].concat(b.req || []).filter(r => !t.built[r]).map(r => BLD[r].name).join(', ');
+    const icon = b.tier ? unitIcon(units[b.tier - 1], 24) : b.up ? unitIcon(units[b.up - 1] + '2', 24) : ico(BICON[id] || 'i_ok', 22);
+    const name = b.id === 'club' ? F.club.name : b.name;
+    const desc = b.tier ? `Найм: ${UNITS[units[b.tier - 1]].name}` : b.up ? `${UNITS[units[b.up - 1]].name} → ${UNITS[units[b.up - 1] + '2'].name}` : b.id === 'club' ? `Герою один раз: ${F.club.text}` : b.desc;
+    const foot = st === 'built' ? `${ico('i_ok', 12)} построено`
+      : st === 'req' ? `<span class="need" title="нужно: ${need}">нужно: ${need}</span>`
+        : `<span class="cost">${costText(b.cost)}</span>${st === 'ok' ? `<button class="sm" data-b="${b.id}">Построить</button>` : `<span class="note">${st === 'today' ? 'завтра' : 'не хватает'}</span>`}`;
+    return `<div class="bt ${st === 'built' ? 'built' : st === 'ok' ? 'ok' : st === 'req' ? 'lock' : ''}" title="${name}: ${desc}"><div class="t1">${icon}<span>${name}</span>${st === 'built' ? `<span class="done">${ico('i_ok', 12)} есть</span>` : ''}</div><div class="ds">${desc}</div><div class="ft">${foot}</div></div>`;
   };
-  const rcard = (u, i) => {
+  // строка найма: боец, его цифры и особенность, справа — сколько есть и кнопки
+  const rrow = (u, i) => {
     const v = townUnit(t, i), U = UNITS[v], ok = t.built['dw' + (i + 1)], n = t.avail[u] || 0, mx = maxRecruit(t, u);
-    return `<div class="rcard ${ok ? '' : 'lock'}"><div class="em">${unitIcon(v, 64)}</div><b>${U.name}</b><br>${ico('i_att', 16)}${U.att} ${ico('i_def', 16)}${U.def} ${ico('i_hp', 16)}${U.hp} ${ico('i_spd', 16)}${U.spd}<br>урон ${U.dmg[0]}–${U.dmg[1]}${U.shots ? ' · стрелок' : ''}${U.fly ? ' · прыгает' : ''}<br><i>${U.note || '&nbsp;'}</i><br>
-      цена ${costText(U.cost)}<br>доступно: <b>${ok ? n : '—'}</b><br>${ok ? `<div class="btns" style="justify-content:center;margin-top:4px"><button data-r="${u}" data-n="1" ${mx ? '' : 'disabled'}>+1</button><button data-r="${u}" data-n="${mx}" ${mx ? '' : 'disabled'}>Все (${mx})</button></div>` : ''}</div>`;
+    const act = ok ? `<span>есть: <b>${n}</b> · ${costText(U.cost)}</span><div class="btns"><button class="sm" data-r="${u}" data-n="1" ${mx ? '' : 'disabled'}>+1</button><button class="sm" data-r="${u}" data-n="${mx}" ${mx ? '' : 'disabled'}>Все ${mx}</button></div>`
+      : `<span class="need">нужно: ${BLD['dw' + (i + 1)].name}</span>`;
+    return `<div class="rr ${ok ? '' : 'lock'}"><span class="ic">${unitIcon(v, 44)}</span><span class="nm">${U.name} <small style="color:#9a8fa0;font-weight:normal">${i + 1} ур.</small></span>
+      <span class="st2">${ico('i_att', 12)}${U.att} ${ico('i_def', 12)}${U.def} ${ico('i_hp', 12)}${U.hp} ${ico('i_spd', 12)}${U.spd} · урон ${U.dmg[0]}–${U.dmg[1]}${U.shots ? ` · ${ico('i_shot', 12)}${U.shots}` : ''}</span>
+      <span class="tr" title="${U.note || ''}">${U.note || ''}</span><span class="act">${act}</span></div>`;
   };
   const upList = [...t.garrison, ...(hero ? hero.army : [])].map(x => upgradeCost(t, x)).filter(Boolean), upSum = upList.reduce((a, c) => a + c, 0), upMin = upList.length ? Math.min(...upList) : 0;
   const jl = myJailed(t.owner), held = jail().filter(j => j.at === t.id && j.captor === t.owner && j.hero.owner !== t.owner);
-  const jailHtml = jl.length ? `<h3>Наши в неволе</h3><div class="btns" style="margin-bottom:10px">${jl.map((j, k) => `<button class="sec" data-ran="${k}">${heroIco(j.hero, 24)} ${j.hero.name}, ур. ${j.hero.lvl} — ${jailPlace(j)} · ${ransomOf(j) ? `выкуп ${ransomOf(j)}${resIco('gold', 16)}` : 'позвать бесплатно'}</button>`).join('')}</div>` : '';
-  const heldHtml = held.length ? `<div style="margin-bottom:10px"><small>В этом городе держат пленных: ${held.map(j => `${j.hero.name} (${G.players[j.hero.owner].name}), выкуп ${ransomOf(j)}`).join('; ')}. Возьмут город — пленные уйдут.</small></div>` : '';
-  const heatHtml = (p.heat || 0) >= 10 ? `<h3>Розыск: ${p.heat} из 100${p.heat >= HEAT_RAID ? ' — в понедельник приедет ОМОН' : p.heat >= HEAT_WARN ? ' — на бригаду вышла ориентировка' : ''}</h3><div class="btns" style="margin-bottom:10px">${t.built.adm1 ? `<button id="bribeBtn" ${p.res.gold >= bribeCost(p) ? '' : 'disabled'}>Занести через Управу: ${bribeCost(p)}${resIco('gold', 16)} — розыск снят</button>` : '<small>Откупиться можно в городе с Управой</small>'}</div>` : '';
-  const market = t.built.market ? `<h3>Барахолка${G.def && G.def.done ? ' — после дефолта всё втрое дороже' : ''}</h3><div class="btns">${['fuel', 'brick'].map(r => `<button data-buy="${r}">Купить ${resIco(r)} за ${tradeBuy()}${resIco('gold', 16)}</button><button class="sec" data-sell="${r}">Продать ${resIco(r)} за ${tradeSell()}${resIco('gold', 16)}</button>`).join('')}</div>` : '';
+  const extra = [
+    jl.length ? `<div class="sect"><h3>Наши в неволе</h3>${jl.map((j, k) => `<div class="mrow">${heroIco(j.hero, 24)}<span style="flex:1">${j.hero.name}, ур. ${j.hero.lvl}<br><small style="color:#9a8fa0">${jailPlace(j)}</small></span><button class="sm" data-ran="${k}">${ransomOf(j) ? `Выкупить: ${ransomOf(j)}${resIco('gold', 14)}` : 'Позвать'}</button></div>`).join('')}</div>` : '',
+    held.length ? `<div class="sect"><small style="color:#c9bcd2">Здесь держат пленных: ${held.map(j => `${j.hero.name} (${G.players[j.hero.owner].name}), выкуп ${ransomOf(j)}`).join('; ')}. Возьмут город — пленные уйдут.</small></div>` : '',
+    (p.heat || 0) >= 10 ? `<div class="sect"><h3>Розыск: ${p.heat} из 100<span>${p.heat >= HEAT_RAID ? 'в понедельник приедет ОМОН' : p.heat >= HEAT_WARN ? 'вышла ориентировка' : ''}</span></h3>${t.built.adm1 ? `<button class="sm" id="bribeBtn" ${p.res.gold >= bribeCost(p) ? '' : 'disabled'}>Занести через Управу: ${bribeCost(p)}${resIco('gold', 14)}</button>` : '<small style="color:#9a8fa0">Откупиться можно в городе с Управой</small>'}</div>` : '',
+    t.built.market ? `<div class="sect"><h3>Барахолка<span>${G.def && G.def.done ? 'после дефолта всё втрое дороже' : ''}</span></h3>${['fuel', 'brick'].map(r => `<div class="mrow"><span>${resIco(r, 16)} ${RES_NAME[r]}</span><button class="sm" data-buy="${r}">Купить за ${tradeBuy()}${resIco('gold', 14)}</button><button class="sec sm" data-sell="${r}">Продать за ${tradeSell()}${resIco('gold', 14)}</button></div>`).join('')}</div>` : '',
+  ].join('');
   $('townBox').innerHTML = `
-    <div style="display:flex;align-items:center;gap:14px">${ico('t_' + t.fac, 64)}<div><div class="fun" style="font-size:16px;color:${p.col}">${t.name}</div><small>${F.name} · ${F.desc}</small></div>
-      <div style="margin-left:auto;font-size:18px;font-weight:bold">${RES.map(r => `${resIco(r)} ${p.res[r]}`).join(' &nbsp; ')}</div><button id="tClose">Выйти (Esc)</button></div>
-    <h3 style="margin-top:12px">Стройка — одно здание в день</h3><div class="tgrid">${BUILDINGS.map(bcard).join('')}</div>
-    <h3>Найм — новые бойцы приходят по понедельникам</h3><div class="rgrid">${units.map(rcard).join('')}</div>
-    <div class="row">${armyRow(t.garrison, 'g', 'Гарнизон (охраняет город)')}${hero ? armyRow(hero.army, 'h', `${heroIco(hero, 24)} ${hero.name}`) : ''}</div>
-    <div class="btns" style="margin:10px 0">${hero ? '<button class="sec" id="allH">Всех к герою</button><button class="sec" id="allG">Всех в гарнизон</button>' : `<button id="hire">Нанять героя за ${HERO_COST}${resIco('gold', 16)}</button>`}${upSum ? `<button id="upAll" ${p.res.gold >= upMin ? '' : 'disabled'}>Переобуть отряды в улучшенных: ${upSum}${resIco('gold', 16)}</button>` : ''}<small style="align-self:center">Клик по отряду, потом по другому месту — переставить или объединить.</small></div>
-    ${jailHtml}${heldHtml}${heatHtml}
-    ${market}`;
+    <div class="th">${ico('t_' + t.fac, 48)}<div><div class="nm" style="color:${p.col}">${t.name}</div><small>${F.name} · ${F.desc}</small></div>
+      <div class="chips">${RES.map(r => `<span class="chip">${resIco(r, 18)} ${p.res[r]}</span>`).join('')}</div><button id="tClose">Выйти <kbd>Esc</kbd></button></div>
+    <div class="tb">
+      <div class="tcol">
+        <h3>Бойцы<span>${today ? 'сегодня уже строили — следующее здание завтра' : 'одно здание в день'}</span></h3>
+        <div class="bgrid">${[1, 2, 3, 4, 5].map(i => tile('dw' + i) + tile('up' + i)).join('')}</div>
+        <h3>Хозяйство и защита</h3><div class="bgrid b3">${['adm1', 'adm2', 'market', 'bank', 'garage', 'gym', 'fence', 'club'].map(tile).join('')}</div>
+      </div>
+      <div class="tcol">
+        <h3>Найм<span>новые бойцы приходят по понедельникам</span></h3>
+        ${units.map(rrow).join('')}
+        <div class="sect">${armyRow(t.garrison, 'g', 'Гарнизон')}</div>
+        <div class="sect">${hero ? armyRow(hero.army, 'h', `${heroIco(hero, 18)} ${hero.name}`) : `<h3>Героя в городе нет</h3>`}</div>
+        <div class="btns" style="margin-top:8px">${hero ? '<button class="sec sm" id="allH">Всех к герою</button><button class="sec sm" id="allG">Всех в гарнизон</button>' : `<button class="sm" id="hire">Нанять героя: ${HERO_COST}${resIco('gold', 14)}</button>`}${upSum ? `<button class="sm" id="upAll" ${p.res.gold >= upMin ? '' : 'disabled'}>Переобуть в улучшенных: ${upSum}${resIco('gold', 14)}</button>` : ''}</div>
+        <small style="color:#9a8fa0;display:block;margin-top:4px">Клик по отряду, потом по другому месту — переставить или объединить.</small>
+        ${extra}
+      </div>
+    </div>`;
+  document.querySelectorAll('#townBox .tcol').forEach((c, i) => { c.scrollTop = keep[i] || 0; });
   const R = () => renderTown(t, hero), box = $('townBox');
   $('tClose').onclick = closeTown;
   box.querySelectorAll('[data-ran]').forEach(el => el.onclick = () => { const r = ransom(t, jl[+el.dataset.ran]); if (typeof r === 'string') toast(r, true); else { selectHero(r); hero = r; } R(); });
@@ -98,7 +122,7 @@ function openExchange(a, b) {
   return new Promise(res => {
     SLOT = null; $('exch').hidden = false;
     const R = () => {
-      $('exchBox').innerHTML = `<div class="fun" style="font-size:16px;color:var(--gold)">Встреча</div><div class="row">${armyRow(a.army, 'a', `${heroIco(a, 24)} ${a.name}`)}${armyRow(b.army, 'b', `${heroIco(b, 24)} ${b.name}`)}</div>
+      $('exchBox').innerHTML = `<div class="fun" style="font-size:14px;color:var(--gold);margin-bottom:10px">${ico('i_meet', 20)} Встреча</div><small style="color:#9a8fa0;display:block;margin-bottom:8px">Клик по отряду, потом по другому месту — переставить или объединить.</small><div class="row">${armyRow(a.army, 'a', `${heroIco(a, 24)} ${a.name}`)}${armyRow(b.army, 'b', `${heroIco(b, 24)} ${b.name}`)}</div>
         <div class="btns" style="margin-top:12px"><button id="xClose">Готово</button></div>`;
       bindSlots($('exchBox'), { a: { arr: a.army, hero: true }, b: { arr: b.army, hero: true } }, R);
       $('xClose').onclick = () => { $('exch').hidden = true; refresh(); res(); };
@@ -145,8 +169,8 @@ $('bWait').onclick = () => battleWait();
 $('bDef').onclick = () => battleDefend();
 $('bCast').onclick = () => toggleSpells();
 $('bAuto').onclick = () => battleAuto();
-$('goBtn').innerHTML = `${ico('i_play', 16)} Продолжить путь (Пробел)`;
-$('endBtn').innerHTML = `${ico('i_next', 18)} Конец хода (Enter)`;
+$('goBtn').innerHTML = `${ico('i_play', 14)} Путь <kbd>␣</kbd>`;
+$('endBtn').innerHTML = `${ico('i_next', 16)} Конец хода <kbd>Enter</kbd>`;
 $('bWait').innerHTML = btnLbl('i_wait', 'Ждать', 'W');
 $('bDef').innerHTML = btnLbl('i_def', 'Оборона', 'D');
 $('bAuto').innerHTML = btnLbl('i_bot', 'Авто', 'A');
